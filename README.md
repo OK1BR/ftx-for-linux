@@ -11,8 +11,9 @@ TCI only.
 > search, demodulation, LDPC/OSD, a-priori decoding, multi-pass subtraction,
 > WSJT-X's a7/a8 decodes) are ported from WSJT-X and reproduce its decodes
 > bit for bit on the reference recordings; the `ftx-decode` command decodes
-> WAV files; the transmit side (message → tones → GFSK waveform exactly as
-> WSJT-X sends it) is in the library. Not yet: live radio I/O (TCI), the GUI. Follow
+> WAV files, `ftx-rx` decodes live from a TCI radio, `ftx-record` saves
+> periods; the transmit side (message → tones → GFSK waveform exactly as
+> WSJT-X sends it) is in the library. Not yet: TX over TCI, the GUI. Follow
 > [docs/PORT-MAP.md](docs/PORT-MAP.md) for the module list.
 
 ## Provenance
@@ -48,6 +49,9 @@ this program are licensed under the GNU GPL v3 (or later); see
   ```sh
   ftx-record -H 192.168.1.18 -p 40001 -n 10 ~/ft8-recordings
   ```
+- `src/ftx-rx.c` — live decoding from a TCI radio: decodes on stdout in
+  jt9's format, a status line per period (decode time, level, clock drift,
+  mean DT) on stderr. `-5` for FT4, `-c/-x/-G` for a-priori decoding.
 
 ## Build
 

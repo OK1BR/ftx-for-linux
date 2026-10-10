@@ -32,6 +32,10 @@ executable('ftx-record', ['src/ftx-record.c', app_src],
   include_directories : include_directories('src'),
   dependencies : [glib_dep, lws_dep, m_dep],
   install : true)
+executable('ftx-rx', ['src/ftx-rx.c', app_src],
+  include_directories : include_directories('src'),
+  dependencies : [ftx_dep, fftw3f_dep, glib_dep, lws_dep, m_dep],
+  install : true)
 
 # The bit-exact gates against WSJT-X-generated vectors are development
 # material kept outside the repository (dev/, ignored by git); the build

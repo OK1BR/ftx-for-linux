@@ -164,6 +164,10 @@ an injected clock) and `ftx-record`. End-to-end test against
 `dev/tools/tci_mock_server.c` (streams a WAV UTC-aligned): recordings decode
 identically to the source, DT preserved. The real sdr-for-linux server was
 not running during this work (connection refused on :40001); the first live
-connection is still pending. Next: `ftx-rx` live decoding, then live test. Installing AUR `wsjtx` (jt9 oracle) is a later,
+connection is still pending. `ftx-rx` (live RX: decoder in a worker thread fed by the period
+assembler, jt9 lines on stdout, per-period status with mean-DT clock check on
+stderr) done; against the mock it reproduces the sample WAV's 21 decodes in
+1.9 s per period. Live test against the real server pending (needs
+sdr-for-linux running). Next: live test, then GUI mockups (docs/mockups/). Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).
