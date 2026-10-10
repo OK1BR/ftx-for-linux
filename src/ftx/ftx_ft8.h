@@ -29,6 +29,7 @@
 #define FTX_FT8_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "ftx_fft.h"
@@ -116,6 +117,7 @@ void ftx_ft8_subtract(ftx_ft8_ctx *ctx, float *dd, const int itone[79], float f0
 /* Decoder settings shared by ft8b and the pass driver (WSJT-X names). */
 typedef struct ftx_ft8_params {
   int  nQSOProgress;   /* 0..5, selects the AP pass types                 */
+  int  nfa, nfb;       /* decoding range (Hz), WSJT-X nfa/nfb (jt9: 200, 4000) */
   int  nfqso;          /* Rx frequency (Hz), AP window centre             */
   int  nftx;           /* Tx frequency (Hz)                               */
   int  ndepth;         /* 1, 2 or 3                                       */
@@ -141,5 +143,35 @@ void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd, bool *newdat, const ftx_ft8_params *p
               int imetric, float *f1, float *xdt, float xbase, const int apsym[58], const int aph10[10],
               int *nharderrors, float *dmin, int *nbadcrc, int *iaptype, int *ipass, char msg37[38],
               float *xsnr, int itone[79]);
+
+/* --- the decoder proper (ft8_decode.f90) --- */
+
+/* One decode: sync quality, SNR (dB in 2500 Hz), DT (s), frequency (Hz),
+ * the message (<= 37 characters, NUL terminated), the AP type used
+ * (0 = none, 1..6 = AP types, 7 = a7, 8 = a8) and a quality figure 0..1. */
+typedef void (*ftx_ft8_decode_cb)(void *user, float sync, int snr, float dt, float freq,
+                                  const char *decoded, int nap, float qual);
+
+/* ftx_ft8_decode: decode one call on a 15 s period, exactly as WSJT-X's
+ * ft8_decode%decode.  iwave holds FT8_NMAX int16 samples; the caller feeds
+ * the period in up to three calls with p->nzhsym = 41, 47 and 50 (samples
+ * beyond nzhsym*3456 are ignored/zeroed by the caller, as jt9 does), or a
+ * single call with nzhsym = 50.  State between calls (early decodes, the
+ * subtracted waveform, the a7 tables) lives in the context.  nutc is the
+ * period's HHMMSS; emedelay is added to DT when nonzero (EME).  ltry_a8 /
+ * ldiskdat follow the Fortran arguments.  Decodes go to cb in the order
+ * WSJT-X reports them.
+ * Not yet ported from v3.0.2: the a7 ("previous period") and a8 (list)
+ * decoders that WSJT-X runs after the main passes; their table bookkeeping
+ * (ft8_a7_save) is in place. */
+void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params *p, int nutc,
+                    bool ltry_a8, bool ldiskdat, float emedelay, ftx_ft8_decode_cb cb, void *user);
+
+/* Format a decode the way jt9 prints it:
+ * "HHMMSS SNR  DT FREQ ~  MESSAGE                               aN", with the
+ * '?' at column 37 of the message when an AP decode has qual < 0.17.
+ * buf needs at least 64 bytes. */
+void ftx_ft8_format_line(char *buf, size_t len, int nutc, int snr, float dt, float freq,
+                         const char *decoded, int nap, float qual);
 
 #endif /* FTX_FT8_H */

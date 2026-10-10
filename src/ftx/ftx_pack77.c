@@ -1715,3 +1715,8 @@ void ftx_pack77_save_hash_call(ftx_pack77_ctx *ctx, const char *c13, int *n10, i
 {
   save_hash_call(ctx, c13, n10, n12, n22);
 }
+
+void ftx_pack77_split77(char *msg, int *nwords, int nw[19], char w[19][14])
+{
+  split77(msg, nwords, nw, w);
+}

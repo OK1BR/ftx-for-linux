@@ -61,6 +61,11 @@ void ftx_pack77_set_dxbase(ftx_pack77_ctx *ctx, const char *base);
  * 10/12/22-bit hash tables; n10/n12/n22 (may be NULL) receive its hashes. */
 void ftx_pack77_save_hash_call(ftx_pack77_ctx *ctx, const char *c13, int *n10, int *n12, int *n22);
 
+/* split77: upper-case msg (37-character field, modified in place: blanks
+ * collapsed), split into up to 19 words of 13 characters (blank padded, NUL
+ * at [13]); "CQ xx CALL ..." becomes the word "CQ_xx". */
+void ftx_pack77_split77(char *msg, int *nwords, int nw[19], char w[19][14]);
+
 /* fmtmsg: upper-case the message and collapse runs of blanks, in place
  * (what WSJT-X applies to every message before pack77). */
 void ftx_fmtmsg(char *msg);

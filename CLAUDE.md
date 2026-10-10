@@ -136,7 +136,17 @@ Fourth module `ftx_ldpc` (encode174_91, the hybrid BP/OSD `decode174_91`,
 `dev/tools/vectors/ldpc_dump.f90`: 1 953 encode + 8 100 decode vectors across
 BP-only, maxosd 0/2/3, OSD orders 0-4, AP masks 29/58/77 bits and Keff
 77/84/91; decoded bits and `dmin` bit-exact, 0 mismatches. OSD state lives in
-`ftx_ldpc_ctx` (~2.4 MB, heap). Next: sync8/ft8_downsample/ft8b (the FT8
-signal path), then the `ftx-decode` CLI and the jt9 oracle gate. Installing AUR `wsjtx` (jt9 oracle) is a later,
+`ftx_ldpc_ctx` (~2.4 MB, heap). FT8 signal path ported and gated bit-exactly against the Fortran
+run from the clone (dev drivers in `dev/tools/vectors/`: `ft8_sync_dump.f90`,
+`ft8b_dump.f90`, `ft8_decode_dump.f90`; ft8sim built with a fixed seed +
+`dev/tools/vectors/` mixer for synthetic WAVs in `dev/tests/wav/`): sync8
+chain, ft8b (all AP variants), subtractft8, and the `decode()` state machine
+with jt9's 41/47/50 call sequence. `ftx-decode` CLI prints jt9-format lines;
+decode sets identical on the sample WAV (depth 1/2/3) and 5 synthetic WAVs.
+The oracle is our own Fortran driver linked from the v3.0.2 sources, so the
+AUR `wsjtx`/`jt9` is only an optional cross-check now. Not yet ported:
+`ft8_a7d`/`ft8_a8d` (run only with my/DX call set; a7 needs a previous
+period), real-time wall-clock bail-outs (ldiskdat=false), FT4. Next: a7/a8
+with calls set (milestone 2), multi-file sequences (milestone 3), FT4. Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).

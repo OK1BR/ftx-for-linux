@@ -20,6 +20,10 @@ fftw3_dep  = dependency('fftw3')
 
 subdir('src/ftx')   # libftx: GLib-free FT8/FT4 decoder core (C99 + FFTW3)
 
+executable('ftx-decode', 'src/ftx-decode.c',
+  dependencies : [ftx_dep, fftw3f_dep, m_dep],
+  install : true)
+
 # The bit-exact gates against WSJT-X-generated vectors are development
 # material kept outside the repository (dev/, ignored by git); the build
 # picks them up when present so `meson test -C build` works on the dev box.

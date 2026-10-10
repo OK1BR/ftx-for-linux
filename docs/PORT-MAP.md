@@ -14,7 +14,8 @@ vectors are development material and are not part of this repository).
 | `ftx_fft` | `lib/four2a.f90` (FFTW3 plans, here planned once per context) | done |
 | `ftx_ft8_sync` | `lib/ft8/sync8.f90`, `sync8d.f90`, `ft8_downsample.f90`, `twkfreq1.f90`, `get_spectrum_baseline.f90`, `lib/baseline.f90`, `nuttal_window.f90`, `pctile.f90`, `shell.f90`, `polyfit.f90`, `determ.f90` | done |
 | `ftx_ft8_demod` | `lib/ft8/ft8b.f90` (ft8b, normalizebmet), `ft8apset.f90`, `genft8.f90` (tones), `gen_ft8wave.f90`, `subtractft8.f90`, `lib/peakup.f90`, `ft2/gfsk_pulse.f90`, stdcall | done |
-| `ftx_ft8` | `lib/ft8_decode.f90` (multi-pass driver, early decodes, a7/a8 tables), `lib/ft8/ft8_a7.f90`, `ft8_a8d.f90` | — |
+| `ftx_ft8_decode` | `lib/ft8_decode.f90` (multi-pass driver, early decodes at nzhsym 41/47/50, subtraction, duplicates, jt9 line format), `lib/ft8/ft8_a7.f90` (`ft8_a7_save` table bookkeeping) | done |
+| a7 / a8 | `lib/ft8/ft8_a7.f90` (`ft8_a7d`, `getmsg`), `ft8_a8d.f90`, `lib/smo121.f90` — run by WSJT-X after the main passes when my/DX call are set | — |
 | `ftx_ft4` | `lib/ft4/*.f90`, `lib/ft4_decode.f90` | — |
 
 Not ported on purpose: `bpdecode174_91.f90` (no caller outside the ft8var

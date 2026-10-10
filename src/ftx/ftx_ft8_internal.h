@@ -11,6 +11,7 @@
 #define FT8_NFFT_DS 192000                /* ft8_downsample long FFT            */
 #define FT8_NFILT 4000                    /* subtractft8 filter length          */
 #define FT8_NTAB 65536                    /* gen_ft8wave phase table            */
+#define FT8_A7_MAXDEC 200                 /* ft8_a7 table size                  */
 
 /* cmplx(a,b) without C11's CMPLXF: exact, no arithmetic on the parts */
 #define FTX_CMPLXF(a, b) __builtin_complex((float)(a), (float)(b))
@@ -54,10 +55,31 @@ struct ftx_ft8_ctx {
   float complex *sub_camp;          /* 180000 */
   float *sub_dd;                    /* 180000 working copy        */
   float sub_endcorrection[FT8_NFILT / 2 + 1];
+
+  /* ft8_decode `save` state: the working waveform, early decodes */
+  float *dd;                        /* 180000 */
+  float *dd1;                       /* 180000 */
+  int   nutc0;
+  int   ndec_early;
+  int   itone_save[FT8_MAX_EARLY][FT8_NN];
+  float f1_save[FT8_MAX_EARLY];
+  float xdt_save[FT8_MAX_EARLY];
+  bool  lsubtracted[FT8_MAX_EARLY];
+  char  allmessages[FT8_MAX_EARLY][38];
+
+  /* module ft8_a7 tables: [i][j = even/odd sequence][k = previous/current] */
+  float dt0[FT8_A7_MAXDEC][2][2];
+  float f0[FT8_A7_MAXDEC][2][2];
+  char  msg0[FT8_A7_MAXDEC][2][2][38];
+  int   ndec[2][2];
+  int   jseq;
 };
 
 /* ftx_ft8_demod.c: allocate/free the demodulation part of the context */
 bool ftx_ft8_demod_init(ftx_ft8_ctx *ctx);
 void ftx_ft8_demod_free(ftx_ft8_ctx *ctx);
+/* ftx_ft8_decode.c */
+bool ftx_ft8_decode_init(ftx_ft8_ctx *ctx);
+void ftx_ft8_decode_free(ftx_ft8_ctx *ctx);
 
 #endif /* FTX_FT8_INTERNAL_H */
