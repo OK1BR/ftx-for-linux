@@ -89,4 +89,57 @@ float ftx_ft8_sync8d(ftx_ft8_ctx *ctx, const fftwf_complex *cd0, int i0, const f
  * normalised Legendre term); in place allowed. */
 void ftx_ft8_twkfreq1(const fftwf_complex *ca, int npts, float fsample, const float a[5], fftwf_complex *cb);
 
+/* --- demodulation and decoding of one candidate (ft8b.f90 and friends) --- */
+
+/* ft8apset: a-priori symbols from my call and the DX call (ncontest as WSJT-X:
+ * 0 none, 1 NA VHF, 2 EU VHF, 3 Field Day, 4 RTTY RU, 5 WW Digi, 6 Fox, 7 Hound,
+ * 8 ARRL Digi).  apsym[58] and aph10[10] receive +1/-1 bits; apsym[0],
+ * apsym[29], aph10[0] carry the sentinel 99 when unavailable.  Updates the
+ * hash tables of the context's pack77 state like the Fortran. */
+void ftx_ft8apset(ftx_ft8_ctx *ctx, const char *mycall, const char *hiscall, int ncontest,
+                  int apsym[58], int aph10[10]);
+
+/* Tones (79) for a 77-bit message (genft8's get_ft8_tones_from_77bits). */
+void ftx_ft8_tones_from_77bits(const uint8_t message77[77], int itone[79]);
+
+/* gen_ft8wave, complex output: GFSK waveform of nsym tones at nsps samples
+ * per symbol, bandwidth-time product bt, sample rate fsample, carrier f0;
+ * nwave samples written (nwave <= nsym*nsps). */
+void ftx_gen_ft8wave(ftx_ft8_ctx *ctx, const int *itone, int nsym, int nsps, float bt, float fsample,
+                     float f0, fftwf_complex *cwave, int nwave);
+
+/* subtractft8: remove the decoded signal (tones itone, frequency f0, start
+ * dt in the ft8b convention) from dd in place; lrefinedt refines dt first
+ * and skips the subtraction when no clean minimum is found. */
+void ftx_ft8_subtract(ftx_ft8_ctx *ctx, float *dd, const int itone[79], float f0, float dt, bool lrefinedt);
+
+/* Decoder settings shared by ft8b and the pass driver (WSJT-X names). */
+typedef struct ftx_ft8_params {
+  int  nQSOProgress;   /* 0..5, selects the AP pass types                 */
+  int  nfqso;          /* Rx frequency (Hz), AP window centre             */
+  int  nftx;           /* Tx frequency (Hz)                               */
+  int  ndepth;         /* 1, 2 or 3                                       */
+  int  nzhsym;         /* 41, 47 or 50 (how much of the period is in)     */
+  int  napwid;         /* AP window half width (Hz), WSJT-X uses 75       */
+  int  ncontest;       /* see ftx_ft8apset                                */
+  bool lapon;          /* AP decoding enabled                             */
+  bool lapcqonly;      /* AP for CQ only                                  */
+  bool nagain;         /* "decode again" at nfqso                         */
+  char mycall[13];     /* blank-padded or NUL-terminated, up to 12 chars  */
+  char hiscall[13];
+  char hisgrid[7];
+} ftx_ft8_params;
+
+/* ft8b: demodulate and decode one candidate at (*f1, *xdt) — both refined
+ * on return; xdt uses sync8's convention (nominal start = 0.5 s).  On a
+ * decode nbadcrc = 0 and msg37, xsnr, nharderrors, dmin, iaptype (0 = no
+ * AP, 1..6 = AP type), ipass (decoding pass) and itone are set; if
+ * lsubtract the signal is subtracted from dd in place.  *newdat is the
+ * caller's flag for ftx_ft8_downsample (cleared on the first candidate of
+ * a pass, as in WSJT-X). */
+void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd, bool *newdat, const ftx_ft8_params *p, bool lsubtract,
+              int imetric, float *f1, float *xdt, float xbase, const int apsym[58], const int aph10[10],
+              int *nharderrors, float *dmin, int *nbadcrc, int *iaptype, int *ipass, char msg37[38],
+              float *xsnr, int itone[79]);
+
 #endif /* FTX_FT8_H */

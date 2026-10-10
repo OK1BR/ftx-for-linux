@@ -57,6 +57,10 @@ void ftx_pack77_set_mycall(ftx_pack77_ctx *ctx, const char *call);
 void ftx_pack77_set_dxcall(ftx_pack77_ctx *ctx, const char *call);
 void ftx_pack77_set_dxbase(ftx_pack77_ctx *ctx, const char *base);
 
+/* save_hash_call: enter a callsign (13-char field, "<...>" stripped) into the
+ * 10/12/22-bit hash tables; n10/n12/n22 (may be NULL) receive its hashes. */
+void ftx_pack77_save_hash_call(ftx_pack77_ctx *ctx, const char *c13, int *n10, int *n12, int *n22);
+
 /* fmtmsg: upper-case the message and collapse runs of blanks, in place
  * (what WSJT-X applies to every message before pack77). */
 void ftx_fmtmsg(char *msg);

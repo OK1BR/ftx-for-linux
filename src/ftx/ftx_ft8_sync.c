@@ -42,7 +42,7 @@ ftx_ft8_ctx *ftx_ft8_ctx_new(void)
 
   ctx->s = calloc((size_t)NH1 * NHSYM, sizeof(float));
   ctx->sync2d = calloc((size_t)NH1 * (2 * JZ + 1), sizeof(float));
-  if (ctx->s == NULL || ctx->sync2d == NULL) {
+  if (ctx->s == NULL || ctx->sync2d == NULL || !ftx_ft8_demod_init(ctx)) {
     ftx_ft8_ctx_free(ctx);
     return NULL;
   }
@@ -93,6 +93,7 @@ void ftx_ft8_ctx_free(ftx_ft8_ctx *ctx)
   ftx_fft_free(&ctx->fft_sym32);
   free(ctx->s);
   free(ctx->sync2d);
+  ftx_ft8_demod_free(ctx);
   free(ctx);
 }
 

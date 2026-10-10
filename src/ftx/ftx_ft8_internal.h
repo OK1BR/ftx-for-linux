@@ -38,6 +38,26 @@ struct ftx_ft8_ctx {
 
   /* sync8d: the 7 Costas tone waveforms */
   float complex csync[7][32];
+
+  /* gen_ft8wave: frequency-smoothing pulse (cached per nsym/nsps/bt/fs) and phase table */
+  float gw_pulse[23040];
+  float gw_fchk0;
+  float complex gw_ctab[FT8_NTAB];
+  float *gw_dphi;                   /* (nsym+2)*nsps, sized for FT8: 81*1920 */
+
+  /* subtractft8: filter spectrum cw, end corrections, work buffers */
+  ftx_fft fft_sub_fwd;              /* c2c 180000 forward (cfilt)  */
+  ftx_fft fft_sub_bwd;              /* c2c 180000 backward (cfilt) */
+  ftx_fft fft_sub_r2c;              /* r2c 180000 (sqf spectrum)   */
+  float complex *sub_cw;            /* 180000 */
+  float complex *sub_cref;          /* 151680 */
+  float complex *sub_camp;          /* 180000 */
+  float *sub_dd;                    /* 180000 working copy        */
+  float sub_endcorrection[FT8_NFILT / 2 + 1];
 };
+
+/* ftx_ft8_demod.c: allocate/free the demodulation part of the context */
+bool ftx_ft8_demod_init(ftx_ft8_ctx *ctx);
+void ftx_ft8_demod_free(ftx_ft8_ctx *ctx);
 
 #endif /* FTX_FT8_INTERNAL_H */

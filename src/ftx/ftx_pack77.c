@@ -1710,3 +1710,8 @@ void ftx_bits_to_c77(const uint8_t bits[77], char c77[78])
   for (int i = 0; i < 77; i++) c77[i] = bits[i] ? '1' : '0';
   c77[77] = '\0';
 }
+
+void ftx_pack77_save_hash_call(ftx_pack77_ctx *ctx, const char *c13, int *n10, int *n12, int *n22)
+{
+  save_hash_call(ctx, c13, n10, n12, n22);
+}
