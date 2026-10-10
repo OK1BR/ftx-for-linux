@@ -10,8 +10,8 @@ TCI only.
 > **Status: phase 1.** The FT8 decoder (candidate search, demodulation,
 > LDPC/OSD, a-priori decoding, multi-pass subtraction) is ported from WSJT-X
 > and reproduces its decodes bit for bit on the reference recordings; the
-> `ftx-decode` command decodes WAV files. Not yet ported: WSJT-X's a7/a8
-> decoders, FT4, live radio I/O, the GUI. Follow
+> `ftx-decode` command decodes WAV files, including WSJT-X's a7/a8 decodes.
+> Not yet ported: FT4, live radio I/O, the GUI. Follow
 > [docs/PORT-MAP.md](docs/PORT-MAP.md) for the module list.
 
 ## Provenance

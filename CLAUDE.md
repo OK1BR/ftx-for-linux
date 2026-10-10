@@ -144,9 +144,10 @@ chain, ft8b (all AP variants), subtractft8, and the `decode()` state machine
 with jt9's 41/47/50 call sequence. `ftx-decode` CLI prints jt9-format lines;
 decode sets identical on the sample WAV (depth 1/2/3) and 5 synthetic WAVs.
 The oracle is our own Fortran driver linked from the v3.0.2 sources, so the
-AUR `wsjtx`/`jt9` is only an optional cross-check now. Not yet ported:
-`ft8_a7d`/`ft8_a8d` (run only with my/DX call set; a7 needs a previous
-period), real-time wall-clock bail-outs (ldiskdat=false), FT4. Next: a7/a8
-with calls set (milestone 2), multi-file sequences (milestone 3), FT4. Installing AUR `wsjtx` (jt9 oracle) is a later,
+AUR `wsjtx`/`jt9` is only an optional cross-check now. Milestones 2+3 done: `ftx_ft8_a7a8` (ft8_a7d, getmsg, ft8_a8d, genft8,
+smo121, db) ported; ft8b refactored into shared refine/bit-metric helpers;
+gates with my/DX call set (AP types 1/3/4/6, a8 on 3 files, a7 on two-period
+sequences) all bit-exact — 57 local gates green. Not ported: real-time
+wall-clock bail-outs (ldiskdat=false; live RX phase), FT4. Next: FT4. Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).

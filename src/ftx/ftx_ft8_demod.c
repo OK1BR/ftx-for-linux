@@ -36,6 +36,7 @@ bool ftx_ft8_demod_init(ftx_ft8_ctx *ctx)
   ftx_fft_plan_c2c(&ctx->fft_sub_fwd, NFFT, -1);
   ftx_fft_plan_c2c(&ctx->fft_sub_bwd, NFFT, +1);
   ftx_fft_plan_r2c(&ctx->fft_sub_r2c, NFFT);
+  ftx_fft_plan_c2c(&ctx->fft_a8, FT8_NDS, -1);
   ctx->sub_cw = fftwf_malloc((size_t)NFFT * sizeof(float complex));
   ctx->sub_cref = calloc((size_t)1920 * 79, sizeof(float complex));
   ctx->sub_camp = calloc((size_t)NFFT, sizeof(float complex));
@@ -81,6 +82,7 @@ void ftx_ft8_demod_free(ftx_ft8_ctx *ctx)
   ftx_fft_free(&ctx->fft_sub_fwd);
   ftx_fft_free(&ctx->fft_sub_bwd);
   ftx_fft_free(&ctx->fft_sub_r2c);
+  ftx_fft_free(&ctx->fft_a8);
   fftwf_free(ctx->sub_cw);
   free(ctx->sub_cref);
   free(ctx->sub_camp);
@@ -90,7 +92,7 @@ void ftx_ft8_demod_free(ftx_ft8_ctx *ctx)
 /* ------------------------------------------------------------------------
  * stdcall, ft8apset
  * ---------------------------------------------------------------------- */
-static bool stdcall(const char *callsign)            /* callsign: up to 12 chars, NUL terminated */
+bool ftx_ft8_stdcall(const char *callsign)           /* stdcall: callsign up to 12 chars, NUL terminated */
 {
   int n = (int)strlen(callsign);
   while (n > 0 && callsign[n - 1] == ' ') n--;
@@ -146,7 +148,7 @@ void ftx_ft8apset(ftx_ft8_ctx *ctx, const char *mycall12, const char *hiscall12,
 
   /* encode a dummy standard message: i3=1 */
   snprintf(msg, sizeof msg, "%s %s RRR", mycall, hiscall);
-  if (!stdcall(mycall)) snprintf(msg, sizeof msg, "<%s> %s RRR", mycall, hiscall);
+  if (!ftx_ft8_stdcall(mycall)) snprintf(msg, sizeof msg, "<%s> %s RRR", mycall, hiscall);
   int i3 = 0, n3 = 0;
   memset(c77, '0', 77);
   c77[77] = '\0';
@@ -381,29 +383,16 @@ static float masked_max(const float *s2, int nt, int bit, bool want)
   return m;
 }
 
-void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd0, bool *newdat, const ftx_ft8_params *p, bool lsubtract,
-              int imetric, float *f1p, float *xdtp, float xbase, const int apsym[58], const int aph10[10],
-              int *nharderrors, float *dmin, int *nbadcrc, int *iaptype, int *ipassp, char msg37[38],
-              float *xsnr, int itone[79])
+/* Shared by ft8b and ft8_a7d: downsample at f1, refine time and frequency,
+ * compute the 79 symbol spectra.  Returns ibest (start sample at 200 S/s);
+ * f1 is refined in place; cs/s8 receive the spectra. */
+void ftx_ft8_refine(ftx_ft8_ctx *ctx, const float *dd0, bool *newdat, float *f1p, float xdt, int *ibestp,
+                    float complex cs[FT8_NN][8], float s8[FT8_NN][8], int *nsyncp)
 {
   const int NP2 = FT8_NP2, NN = FT8_NN;
   float complex cd0v[FT8_NDS];
-  float complex ctwk[32], csymb[32], cs[NN][8];
-  float s8[NN][8], s2[512];
-  float bmeta[174], bmetb[174], bmetc[174], bmetd[174], bmete[174];
-  float llra[174], llrb[174], llrc[174], llrd[174], llre[174], llrz[174];
-  uint8_t message77[77], message91[91], apmask[174], cw[174];
-  float f1 = *f1p, xdt = *xdtp;
-  char c77[78];
-
-  msg37[0] = '\0';
-  *iaptype = 0;
-  *ipassp = 0;
-
-  ftx_pack77_set_dxcall(&ctx->pack77, p->hiscall);     /* dxcall13=hiscall12; mycall13=mycall12 */
-  ftx_pack77_set_mycall(&ctx->pack77, p->mycall);
-
-  *nharderrors = -1;
+  float complex ctwk[32], csymb[32];
+  float f1 = *f1p;
   float fs2 = 12000.0f / FT8_NDOWN;
   float dt2 = 1.0f / fs2;
   float twopi = 8.0f * atanf(1.0f);
@@ -444,7 +433,6 @@ void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd0, bool *newdat, const ftx_ft8_params *
     bool nd = false;
     ftx_ft8_downsample(ctx, dd0, &nd, f1, (fftwf_complex *)cd0v);
   }
-
   float ss[9];
   for (int idt = -4; idt <= 4; idt++)                 /* +/- one quarter symbol */
     ss[idt + 4] = ftx_ft8_sync8d(ctx, (fftwf_complex *)cd0v, ibest + idt, (fftwf_complex *)ctwk, 0);
@@ -454,7 +442,6 @@ void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd0, bool *newdat, const ftx_ft8_params *
       if (ss[i] > ss[iloc]) iloc = i;
     ibest = iloc - 4 + ibest;
   }
-  xdt = (ibest - 1) * dt2;
 
   for (int k = 1; k <= NN; k++) {                     /* symbol spectra */
     int i1 = ibest + (k - 1) * 32;
@@ -480,17 +467,18 @@ void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd0, bool *newdat, const ftx_ft8_params *
     ip = 0; for (int t = 1; t < 8; t++) if (s8[k + 71][t] > s8[k + 71][ip]) ip = t;
     if (icos7[k - 1] == ip) is3++;
   }
-  int nsync = is1 + is2 + is3;                        /* hard sync sum, max 21 */
-  int syncmin = 6;
-  if (imetric == 2) syncmin = 7;
-  if (p->ndepth <= 2) syncmin = 8;
-  if (nsync <= syncmin) {                             /* bail out */
-    *nbadcrc = 1;
-    *f1p = f1;
-    *xdtp = xdt;
-    return;
-  }
+  *nsyncp = is1 + is2 + is3;                          /* hard sync sum, max 21 */
+  *ibestp = ibest;
+  *f1p = f1;
+}
 
+/* Shared by ft8b and ft8_a7d: the bit metrics for 1, 2 and 3 symbols
+ * (bmeta/b/c) and the normalised single-symbol metric (bmetd); imetric 2
+ * squares the symbol magnitudes.  Not normalised here. */
+void ftx_ft8_bitmetrics(const float complex cs[FT8_NN][8], int imetric, float *bmeta, float *bmetb,
+                        float *bmetc, float *bmetd)
+{
+  float s2[512];
   for (int i = 0; i < 174; i++) { bmeta[i] = bmetb[i] = bmetc[i] = bmetd[i] = 0.0f; }
   for (int nsym = 1; nsym <= 3; nsym++) {
     int nt = 1 << (3 * nsym);
@@ -526,6 +514,52 @@ void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd0, bool *newdat, const ftx_ft8_params *
       }
     }
   }
+}
+
+void ftx_ft8_normalizebmet(float *bmet, int n)
+{
+  normalizebmet(bmet, n);
+}
+
+void ftx_ft8b(ftx_ft8_ctx *ctx, float *dd0, bool *newdat, const ftx_ft8_params *p, bool lsubtract,
+              int imetric, float *f1p, float *xdtp, float xbase, const int apsym[58], const int aph10[10],
+              int *nharderrors, float *dmin, int *nbadcrc, int *iaptype, int *ipassp, char msg37[38],
+              float *xsnr, int itone[79])
+{
+  float complex cs[FT8_NN][8];
+  float s8[FT8_NN][8];
+  float bmeta[174], bmetb[174], bmetc[174], bmetd[174], bmete[174];
+  float llra[174], llrb[174], llrc[174], llrd[174], llre[174], llrz[174];
+  uint8_t message77[77], message91[91], apmask[174], cw[174];
+  float f1 = *f1p, xdt = *xdtp;
+  char c77[78];
+  int ibest = 0, nsync = 0;
+
+  msg37[0] = '\0';
+  *iaptype = 0;
+  *ipassp = 0;
+
+  ftx_pack77_set_dxcall(&ctx->pack77, p->hiscall);     /* dxcall13=hiscall12; mycall13=mycall12 */
+  ftx_pack77_set_mycall(&ctx->pack77, p->mycall);
+
+  *nharderrors = -1;
+  float fs2 = 12000.0f / FT8_NDOWN;
+  float dt2 = 1.0f / fs2;
+
+  ftx_ft8_refine(ctx, dd0, newdat, &f1, xdt, &ibest, cs, s8, &nsync);
+  xdt = (ibest - 1) * dt2;
+
+  int syncmin = 6;
+  if (imetric == 2) syncmin = 7;
+  if (p->ndepth <= 2) syncmin = 8;
+  if (nsync <= syncmin) {                             /* bail out */
+    *nbadcrc = 1;
+    *f1p = f1;
+    *xdtp = xdt;
+    return;
+  }
+
+  ftx_ft8_bitmetrics(cs, imetric, bmeta, bmetb, bmetc, bmetd);
   for (int i = 0; i < 174; i++) {                     /* bmete: the largest magnitude of a, b, c */
     float temp[3] = { bmeta[i], bmetb[i], bmetc[i] };
     int ip = 0;

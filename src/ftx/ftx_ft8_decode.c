@@ -6,9 +6,8 @@
  * for the WSJT-X copyright and the GPL-3.0-or-later notice.
  * This port: Copyright (C) 2026 Richard Fakenberg, OK1BR.
  *
- * Not ported (yet): the real-time bail-outs on the wall clock (only active
- * when ldiskdat is false in WSJT-X), and the a7/a8 decoders that run after
- * the main passes (ft8_a7d, ft8_a8d).
+ * Not ported: the real-time bail-outs on the wall clock (only active when
+ * ldiskdat is false in WSJT-X).
  */
 #include <math.h>
 #include <stdio.h>
@@ -128,10 +127,9 @@ void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params
   char msg37[38];
   int ndecodes = 0, n2 = 0;
   bool la8 = true;
+  float sync_last = 0.0f;
   int nzhsym = p->nzhsym, ndepth = p->ndepth;
-  (void)ltry_a8;
   (void)ldiskdat;
-  (void)la8;
   (void)n2;
 
   if (nzhsym == 41) ctx->jseq = (nutc / 5) % 2;
@@ -237,6 +235,7 @@ void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params
       int ncand = ftx_ft8_sync8(ctx, dd, &ifa, &ifb, syncmin, p->nfqso, FT8_MAXCAND, candidate, sbase);
       for (int icand = 0; icand < ncand; icand++) {
         float sync = candidate[icand].sync;
+        sync_last = sync;
         float f1 = candidate[icand].freq;
         float xdt = candidate[icand].dt;
         int ib = (int)lroundf(f1 / 3.125f);
@@ -279,9 +278,66 @@ l800:
   if (nzhsym < 50) ctx->ndec_early = ndecodes;
 
 l900:
-  /* ft8_a7d over the previous sequence's table and the a8 list decoder
-   * belong here (WSJT-X runs them at nzhsym == 50 with AP on); not yet
-   * ported — see the header. */
+  /* a7: try the next expected message of every station decoded in the
+   * previous period of this sequence */
+  if (p->lapon && p->ncontest != 6 && p->ncontest != 7 && nzhsym == 50 && ctx->ndec[jseq][0] >= 1) {
+    bool newdat = true;
+    for (int i = 0; i < ctx->ndec[jseq][0]; i++) {
+      if (ctx->f0[i][jseq][0] == -99.0f) break;
+      if (ctx->f0[i][jseq][0] == -98.0f) continue;
+      if (strchr(ctx->msg0[i][jseq][0], '<') != NULL) continue;   /* ### Temporary ### */
+      char m37[38], call_1[13], call_2[13], grid4[5];
+      memcpy(m37, ctx->msg0[i][jseq][0], 38);
+      int i1 = 0, i2 = 0;
+      for (int k = 0; k < 37; k++) if (m37[k] == ' ') { i1 = k + 1; break; }
+      for (int k = i1; k < 37; k++) if (m37[k] == ' ') { i2 = k + 1; break; }
+      snprintf(call_1, sizeof call_1, "%.*s", i1 - 1 > 12 ? 12 : i1 - 1, m37);
+      snprintf(call_2, sizeof call_2, "%.*s", i2 - i1 - 1 > 12 ? 12 : (i2 - i1 - 1 < 0 ? 0 : i2 - i1 - 1), m37 + i1);
+      snprintf(grid4, sizeof grid4, "%.4s", m37 + i2);
+      if (strncmp(grid4, "RR73", 4) == 0 || strchr(grid4, '+') != NULL || strchr(grid4, '-') != NULL)
+        memcpy(grid4, "    ", 5);
+      float xdt = ctx->dt0[i][jseq][0];
+      float f1 = ctx->f0[i][jseq][0];
+      int ib = (int)lroundf(f1 / 3.125f);
+      if (ib < 1) ib = 1;
+      float xbase = powf(10.0f, 0.1f * (sbase[ib - 1] - 40.0f));
+      int nharderrors = -1;
+      float dmin = 0.0f, xsnr = 0.0f;
+      msg37[0] = '\0';
+      ftx_ft8_a7d(ctx, dd, &newdat, call_1, call_2, grid4, &xdt, &f1, xbase, &nharderrors, &dmin, msg37, &xsnr);
+      if (nharderrors >= 0) {
+        if (cb != NULL) {
+          int nsnr = (int)xsnr;                       /* nsnr=xsnr: truncation */
+          char his[13];
+          snprintf(his, sizeof his, "%s", p->hiscall);
+          { int n = (int)strlen(his); while (n > 0 && his[n - 1] == ' ') his[--n] = '\0'; }
+          if (strstr(msg37, his) != NULL) la8 = false;
+          cb(user, sync_last, nsnr, xdt, f1, msg37, 7, 1.0f);
+          ft8_a7_save(ctx, jseq, xdt, f1, msg37);
+        }
+      }
+    }
+  }
+
+  /* a8: list decoding at the Rx frequency for the DX call and grid */
+  {
+    int nhis = (int)strlen(p->hiscall), ngrid = (int)strlen(p->hisgrid);
+    while (nhis > 0 && p->hiscall[nhis - 1] == ' ') nhis--;
+    while (ngrid > 0 && p->hisgrid[ngrid - 1] == ' ') ngrid--;
+    if (p->lapon && p->ncontest != 6 && p->ncontest != 7 && nzhsym == 50 && la8 && nhis >= 3 && ngrid >= 4 &&
+        ltry_a8) {
+      float f1 = (float)p->nfqso, xdt = 0.0f, fbest = 0.0f, xsnr = 0.0f, plog = 0.0f;
+      ftx_ft8_a8d(ctx, dd, p->mycall, p->hiscall, p->hisgrid, f1, &xdt, &fbest, &xsnr, &plog, msg37);
+      if (msg37[0] != '\0' && msg37[0] != ' ') {
+        if (cb != NULL) {
+          float qual = 1.0f;
+          if (plog < -147.0f) qual = 0.16f;
+          cb(user, 10.0f, (int)lroundf(xsnr), xdt, fbest, msg37, 8, qual);
+          ft8_a7_save(ctx, jseq, xdt, f1, msg37);
+        }
+      }
+    }
+  }
   free(candidate);
 }
 

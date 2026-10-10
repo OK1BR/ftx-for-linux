@@ -160,10 +160,8 @@ typedef void (*ftx_ft8_decode_cb)(void *user, float sync, int snr, float dt, flo
  * subtracted waveform, the a7 tables) lives in the context.  nutc is the
  * period's HHMMSS; emedelay is added to DT when nonzero (EME).  ltry_a8 /
  * ldiskdat follow the Fortran arguments.  Decodes go to cb in the order
- * WSJT-X reports them.
- * Not yet ported from v3.0.2: the a7 ("previous period") and a8 (list)
- * decoders that WSJT-X runs after the main passes; their table bookkeeping
- * (ft8_a7_save) is in place. */
+ * WSJT-X reports them, including the a7 (previous period) and a8 (list)
+ * decodes WSJT-X tries after the main passes when my/DX call are set. */
 void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params *p, int nutc,
                     bool ltry_a8, bool ldiskdat, float emedelay, ftx_ft8_decode_cb cb, void *user);
 

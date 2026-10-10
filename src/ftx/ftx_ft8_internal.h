@@ -40,6 +40,9 @@ struct ftx_ft8_ctx {
   /* sync8d: the 7 Costas tone waveforms */
   float complex csync[7][32];
 
+  /* ft8_a8d: forward c2c 3200 */
+  ftx_fft fft_a8;
+
   /* gen_ft8wave: frequency-smoothing pulse (cached per nsym/nsps/bt/fs) and phase table */
   float gw_pulse[23040];
   float gw_fchk0;
@@ -78,6 +81,22 @@ struct ftx_ft8_ctx {
 /* ftx_ft8_demod.c: allocate/free the demodulation part of the context */
 bool ftx_ft8_demod_init(ftx_ft8_ctx *ctx);
 void ftx_ft8_demod_free(ftx_ft8_ctx *ctx);
+/* ftx_ft8_demod.c: pieces shared with the a7/a8 decoders */
+void ftx_ft8_refine(ftx_ft8_ctx *ctx, const float *dd0, bool *newdat, float *f1p, float xdt, int *ibestp,
+                    float complex cs[FT8_NN][8], float s8[FT8_NN][8], int *nsyncp);
+void ftx_ft8_bitmetrics(const float complex cs[FT8_NN][8], int imetric, float *bmeta, float *bmetb,
+                        float *bmetc, float *bmetd);
+void ftx_ft8_normalizebmet(float *bmet, int n);
+bool ftx_ft8_stdcall(const char *callsign);
+/* ftx_ft8_a7a8.c */
+void ftx_ft8_genft8(ftx_ft8_ctx *ctx, const char *msg, int *i3, int *n3, char msgsent[38],
+                    uint8_t msgbits[77], int itone[79]);
+void ftx_ft8_a7d(ftx_ft8_ctx *ctx, const float *dd0, bool *newdat, const char *call_1, const char *call_2,
+                 const char *grid4, float *xdt, float *f1, float xbase, int *nharderrors, float *dmin,
+                 char msg37[38], float *xsnr);
+void ftx_ft8_a8d(ftx_ft8_ctx *ctx, const float *dd, const char *mycall, const char *dxcall,
+                 const char *dxgrid, float f1a, float *xdt, float *fbest, float *xsnr, float *plog,
+                 char msgbest[38]);
 /* ftx_ft8_decode.c */
 bool ftx_ft8_decode_init(ftx_ft8_ctx *ctx);
 void ftx_ft8_decode_free(ftx_ft8_ctx *ctx);
