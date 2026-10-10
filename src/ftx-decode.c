@@ -90,7 +90,6 @@ static void usage(void)
           "  -G GRID      DX grid (reserved for the a8 decoder)\n"
           "  -f HZ        Rx frequency (default 1500)\n"
           "  -Q N         QSO progress 0..5 (default 0)\n"
-          "  -1           single decode call (nzhsym 50) instead of jt9's 41/47/50 sequence\n"
           "Output: HHMMSS SNR DT FREQ ~ MESSAGE [aN], as jt9 prints it.\n",
           FTX_VERSION);
 }
@@ -105,12 +104,10 @@ int main(int argc, char **argv)
   p.ndepth = 3;
   p.napwid = 75;
   p.lapon = true;
-  bool single = false;
   int i = 1;
   for (; i < argc && argv[i][0] == '-' && argv[i][1] != '\0'; i++) {
     const char *a = argv[i];
     if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
-    if (strcmp(a, "-1") == 0) { single = true; continue; }
     if (i + 1 >= argc) { usage(); return 2; }
     const char *v = argv[++i];
     if (strcmp(a, "-d") == 0) p.ndepth = atoi(v);
@@ -135,7 +132,7 @@ int main(int argc, char **argv)
     if (read_wav(argv[i], iwave) != 0) continue;
     struct cbctx c = { nutc_from_name(argv[i]), p.nfqso, true, 0 };
     static const int seq[3] = { 41, 47, 50 };
-    for (int s = single ? 2 : 0; s < 3; s++) {
+    for (int s = 0; s < 3; s++) {       /* jt9's sequence: the decoder expects all three calls */
       int nzhsym = seq[s];
       memset(id2a, 0, FT8_NMAX * sizeof(int16_t));
       memcpy(id2a, iwave, (size_t)nzhsym * 3456 * sizeof(int16_t));
