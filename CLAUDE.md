@@ -30,8 +30,11 @@ dir `ftx-for-linux`. License **GPL-3.0-or-later** (a derivative of WSJT-X).
      `-5` = FT4 (flags verified in `lib/jt9.f90` @ v3.0.2). Installing the
      AUR package is a system change → Richard's consent first.
 - **Provenance done right**: every ported file carries a header naming the
-  WSJT-X source file, the tag, and the original copyright (Joe Taylor K1JT,
-  Steve Franke K9AN, et al.); About acknowledges WSJT-X. (The Decodium
+  WSJT-X source file, the tag, and the original copyright — the ten holders
+  named in WSJT-X `widgets/about.cpp` @ v3.0.2: Joe Taylor K1JT, Bill
+  Somerville G4WJS, Steve Franke K9AN, Nico Palermo IV3NWV, Uwe Risse DG2YCB,
+  Brian Moran N9ADG, Roger Rehr W3SZ, John Nelson G4KLA, Charlie Suckling
+  DL3WDG, Terrell Deppe KJ5HST (no "et al."); About acknowledges WSJT-X. (The Decodium
   provenance dispute of 2026-02 is the counter-example.)
 - **Decoder core = a GLib-free library**: C99 + FFTW3, stateless context
   struct (WSJT-X keeps module/`save` state → one decode per process; ours
@@ -103,8 +106,23 @@ Parked: Fox/Hound, contest exchanges on TX, PSK Reporter, wideband IQ decode.
 2026-10-10: project founded (decisions above); public repo
 https://github.com/OK1BR/ftx-for-linux created with Richard's consent
 (homepage rifak.cz per the family rule; the repo *description* is still
-empty — public text, show Richard the wording before setting it). Nothing
-built yet. Next: project scaffold from the family template, WSJT-X v3.0.2
-clone to `~/.local/opt/wsjtx`, then packjt77 → CRC14 → LDPC → sync8/ft8b as
-the first ported modules, each with bit-exact vectors. Installing AUR `wsjtx`
-needs Richard's explicit "ano" (system change).
+empty — public text, show Richard the wording before setting it).
+
+2026-10-10 (evening): WSJT-X v3.0.2 (git ccdfaf3) shallow-cloned to
+`~/.local/opt/wsjtx` (sample WAVs are in the tree: `samples/FT8/210703_133430.wav`,
+`samples/FT4/000000_000002.wav`). Scaffold from the family template (meson,
+GPL-3 LICENSE, README, CI gates job on tags/PRs/dispatch only, `docs/PORT-MAP.md`).
+First two modules ported with passing bit-exact gates (`meson test -C build`):
+`ftx_hash` (13 vectors from WSJT-X `tests/unit/packjt77/`) and `ftx_crc14`
+(314 vectors dumped from WSJT-X's own `lib/crc14.cpp` by
+`tools/vectors/crc14_dump.cpp`; Boost headers are installed, no Fortran needed).
+gcc-fortran installed with Richard's consent (2026-10-10, dev/test only; the
+WSJT-X Fortran is compiled per file straight from the clone, no CMake/Qt).
+Third module `ftx_pack77` (the complete 77-bit codec incl. chkcall/fmtmsg,
+state in `ftx_pack77_ctx`) ported and gated: `tools/vectors/pack77_dump.f90`
+drives WSJT-X's own `packjt77` over the scenario files in
+`tools/vectors/pack77/`, 1 693 pack + 12 697 unpack vectors, 0 mismatches
+(see tools/vectors/README.md for the pinned-UB flags and the in/out `c77`).
+Next: `ftx_ldpc` (encode174_91 + bpdecode174_91 + osd174_91, generator/parity
+tables), then sync8/ft8b. Installing AUR `wsjtx` (jt9 oracle) is a later,
+separate consent. Not committed yet (harness rule: commit only when asked).

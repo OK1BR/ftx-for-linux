@@ -1,0 +1,16 @@
+# Build artifacts
+build/
+build-*/
+dist/
+*.o
+*.a
+*.so
+compile_commands.json
+.cache/
+
+# Editor / OS
+*.swp
+*~
+.vscode/
+.idea/
+.claude/worktrees/

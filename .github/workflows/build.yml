@@ -1,0 +1,31 @@
+# CI — runs at release time only (family rule, Richard 2026-07-12: no CI on
+# every commit; the local `meson test` gate covers development).  One job so
+# far: build libftx and run the bit-exact unit gates on ubuntu-26.04.
+# Packaging jobs (AppImage/.deb/.rpm) arrive with the first installable app.
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  APT_DEPS: meson ninja-build libfftw3-dev
+
+jobs:
+  gates:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPS
+      - name: Build
+        run: |
+          meson setup build
+          meson compile -C build
+      - name: Unit gates
+        run: meson test -C build --print-errorlogs
