@@ -168,6 +168,11 @@ connection is still pending. `ftx-rx` (live RX: decoder in a worker thread fed b
 assembler, jt9 lines on stdout, per-period status with mean-DT clock check on
 stderr) done; against the mock it reproduces the sample WAV's 21 decodes in
 1.9 s per period. Live test against the real server pending (needs
-sdr-for-linux running). Next: live test, then GUI mockups (docs/mockups/). Installing AUR `wsjtx` (jt9 oracle) is a later,
+sdr-for-linux running). GUI mockups done 2026-10-11 (`docs/mockups/`:
+`ftx_main_window.c`, `ftx_preferences.c`, PNGs, README with the design
+decisions and the Broadway + headless-Chrome screenshot recipe; Richard's
+user GTK stylesheet recolours stock widgets, hence TX state in custom-drawn
+elements) — waiting for Richard's review before GUI code in `src/`. Next:
+live RX test, then the GUI. Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).
