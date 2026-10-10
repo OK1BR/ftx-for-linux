@@ -38,6 +38,8 @@ struct rx {
   GAsyncQueue *queue;
   GThread *worker;
   gboolean quiet;
+  gboolean ltry_a8;          /* decoder.f90: cleared by a decode within 3 Hz of nfqso */
+  gboolean server_closed;
   int periods, decodes, skipped_tx, skipped_gap;
   /* per-period decode statistics (worker thread) */
   int    nd;
@@ -51,6 +53,7 @@ static void on_decode(void *user, float sync, int snr, float dt, float freq, con
   struct rx *r = user;
   char line[96];
   (void)sync;
+  if (fabsf(freq - r->p8.nfqso) < 3.0f) r->ltry_a8 = FALSE;
   if (r->ft4) ftx_ft4_format_line(line, sizeof line, r->nutc_cur, snr, dt, freq, decoded, nap, qual);
   else ftx_ft8_format_line(line, sizeof line, r->nutc_cur, snr, dt, freq, decoded, nap, qual);
   printf("%s\n", line);
@@ -78,12 +81,12 @@ static gpointer worker(gpointer data)
       ftx_ft4_decode(c4, j->samples, &r->p4, on_decode, r);
     } else {
       static const int seq[3] = { 41, 47, 50 };
-      gboolean ltry_a8 = TRUE;
+      r->ltry_a8 = TRUE;                            /* decoder.f90: set at nzhsym 41 */
       for (int s = 0; s < 3; s++) {
         memset(id2a, 0, FT8_NMAX * sizeof(int16_t));
         memcpy(id2a, j->samples, (size_t)seq[s] * 3456 * sizeof(int16_t));
         r->p8.nzhsym = seq[s];
-        ftx_ft8_decode(c8, id2a, &r->p8, j->nutc, ltry_a8, false, 0.0f, on_decode, r);
+        ftx_ft8_decode(c8, id2a, &r->p8, j->nutc, r->ltry_a8, false, 0.0f, on_decode, r);
       }
     }
     double ms = (g_get_monotonic_time() - t0) / 1000.0;
@@ -91,7 +94,8 @@ static gpointer worker(gpointer data)
       char health[64] = "";
       if (r->nd > 0) {
         double mdt = r->dt_sum / r->nd;
-        snprintf(health, sizeof health, "mean DT %+.2f s%s", mdt, fabs(mdt) > 0.5 ? "  ** CLOCK? **" : "");
+        /* a steady small negative offset is stream latency; a large one is the computer clock */
+        snprintf(health, sizeof health, "mean DT %+.2f s%s", mdt, fabs(mdt) > 0.5 ? "  ** CLOCK OFF? **" : "");
       }
       fprintf(stderr, "%06d_%06d: %d decode(s) in %.0f ms, dial %.0f Hz, peak %d (%.0f %% FS), drift %+.0f ms  %s\n",
               j->day, j->nutc, r->nd, ms, j->dial_hz, j->peak, 100.0 * j->peak / 32767.0, j->drift_ms, health);
@@ -127,6 +131,13 @@ static void on_period(const int16_t *samples, guint nsamp, int day, int nutc, do
 static void on_audio(const float *mono, guint nframes, guint rate, gpointer user)
 {
   ftx_period_push((FtxPeriod *)user, mono, nframes, rate);
+}
+
+static void on_closed(gpointer user)
+{
+  struct rx *r = user;
+  r->server_closed = TRUE;
+  stop_flag = 1;
 }
 
 static void usage(void)
@@ -171,6 +182,7 @@ int main(int argc, char **argv)
   r.queue = g_async_queue_new();
   FtxPeriod *per = ftx_period_new(r.ft4 ? 7500 : 15000, 32767.0f, on_period, &r);
   ftx_tci_client_set_audio_cb(r.tci, on_audio, per);
+  ftx_tci_client_set_closed_cb(r.tci, on_closed, &r);
   GError *err = NULL;
   if (!ftx_tci_client_start(r.tci, FTX_PERIOD_RATE, &err)) {
     fprintf(stderr, "ftx-rx: %s\n", err->message);
@@ -188,8 +200,9 @@ int main(int argc, char **argv)
   struct job *stopj = calloc(1, sizeof *stopj);
   g_async_queue_push(r.queue, stopj);
   g_thread_join(r.worker);
-  fprintf(stderr, "ftx-rx: %d period(s), %d decode(s), %d skipped while keyed, %d skipped for gaps, %u re-anchor(s)\n",
-          r.periods, r.decodes, r.skipped_tx, r.skipped_gap, ftx_period_reanchors(per));
+  fprintf(stderr, "ftx-rx: %d period(s), %d decode(s), %d skipped while keyed, %d skipped for gaps, %u re-anchor(s)%s\n",
+          r.periods, r.decodes, r.skipped_tx, r.skipped_gap, ftx_period_reanchors(per),
+          r.server_closed ? " — the server closed the connection" : "");
   ftx_period_free(per);
   g_async_queue_unref(r.queue);
   ftx_tci_client_free(r.tci);

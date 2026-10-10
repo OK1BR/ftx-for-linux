@@ -22,6 +22,7 @@ struct rec {
   gboolean quiet;
   FtxTciClient *tci;
   int tx_skipped;
+  gboolean server_closed;
 };
 
 static gboolean write_wav(const char *path, const int16_t *s, guint n)
@@ -43,6 +44,13 @@ static gboolean write_wav(const char *path, const int16_t *s, guint n)
 static void on_audio(const float *mono, guint nframes, guint rate, gpointer user)
 {
   ftx_period_push((FtxPeriod *)user, mono, nframes, rate);
+}
+
+static void on_closed(gpointer user)
+{
+  struct rec *r = user;
+  r->server_closed = TRUE;
+  stop_flag = 1;
 }
 
 static void on_period(const int16_t *samples, guint nsamp, int day, int nutc, double drift_ms, int gap_ms, int peak, gpointer user)
@@ -105,10 +113,11 @@ int main(int argc, char **argv)
   const char *dir = argv[i];
   if (g_mkdir_with_parents(dir, 0755) != 0) { perror(dir); return 1; }
 
-  struct rec r = { dir, nmax, 0, quiet, NULL, 0 };
+  struct rec r = { dir, nmax, 0, quiet, NULL, 0, FALSE };
   r.tci = ftx_tci_client_new(host, (guint16)port);
   FtxPeriod *per = ftx_period_new(period_ms, gain, on_period, &r);
   ftx_tci_client_set_audio_cb(r.tci, on_audio, per);
+  ftx_tci_client_set_closed_cb(r.tci, on_closed, &r);
   GError *err = NULL;
   if (!ftx_tci_client_start(r.tci, FTX_PERIOD_RATE, &err)) {
     fprintf(stderr, "ftx-record: %s\n", err->message);
@@ -122,8 +131,8 @@ int main(int argc, char **argv)
   signal(SIGTERM, on_sigint);
   while (!stop_flag) g_usleep(100000);
   ftx_tci_client_stop(r.tci);
-  fprintf(stderr, "ftx-record: %d file(s) written, %d period(s) skipped while keyed, %u re-anchor(s)\n", r.written,
-          r.tx_skipped, ftx_period_reanchors(per));
+  fprintf(stderr, "ftx-record: %d file(s) written, %d period(s) skipped while keyed, %u re-anchor(s)%s\n", r.written,
+          r.tx_skipped, ftx_period_reanchors(per), r.server_closed ? " — the server closed the connection" : "");
   ftx_period_free(per);
   ftx_tci_client_free(r.tci);
   return 0;
