@@ -112,8 +112,9 @@ Parked: Fox/Hound, contest exchanges on TX, PSK Reporter, wideband IQ decode.
 
 2026-10-10: project founded (decisions above); public repo
 https://github.com/OK1BR/ftx-for-linux created with Richard's consent
-(homepage rifak.cz per the family rule; the repo *description* is still
-empty — public text, show Richard the wording before setting it).
+(homepage rifak.cz per the family rule; description set 2026-10-10 with
+Richard's "ano": "Native GTK4/libadwaita FT8 and FT4 program for Linux (TCI
+radios); decoders ported from WSJT-X").
 
 2026-10-10 (evening): WSJT-X v3.0.2 (git ccdfaf3) shallow-cloned to
 `~/.local/opt/wsjtx` (sample WAVs are in the tree: `samples/FT8/210703_133430.wav`,
