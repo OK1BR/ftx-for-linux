@@ -6,6 +6,8 @@ ftx_src = files(
   'ftx_pack77.c',
   'ftx_ldpc_tables.c',
   'ftx_ldpc.c',
+  'ftx_fft.c',
+  'ftx_ft8_sync.c',
 )
 libftx = static_library('ftx', ftx_src,
   include_directories : ftx_inc,

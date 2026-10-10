@@ -23,6 +23,7 @@
  */
 #include "ftx_ldpc.h"
 #include "ftx_crc14.h"
+#include "ftx_internal.h"
 
 #include <math.h>
 #include <string.h>
@@ -86,7 +87,7 @@ static float platanh(float x)
 
 /* indexx (Numerical Recipes quicksort index): indx[1..n] orders arr[1..n]
  * ascending.  Arrays are 1-based here to keep the original control flow. */
-static void indexx(const float *arr, int n, int *indx)
+void ftx_indexx(const float *arr, int n, int *indx)
 {
   enum { MM = 7, NSTACK = 50 };
   int istack[NSTACK + 1];
@@ -275,8 +276,7 @@ static void fetchit91(ftx_ldpc_ctx *ctx, bool *reset, const uint8_t *e2, int nta
 void ftx_ldpc_osd174_91(ftx_ldpc_ctx *ctx, const float llr[174], int k, const uint8_t apmask[174],
                         int ndeep, uint8_t message91[91], uint8_t cw[174], int *nhardmin, float *dmin)
 {
-  static uint8_t genmrb_s[K][N];                 /* see note on scratch below */
-  uint8_t (*genmrb)[N] = genmrb_s;
+  uint8_t (*genmrb)[N] = ctx->genmrb;            /* scratch lives in the context, not in a static */
   uint8_t hdec[N], hdecp[N], apmaskr[N], c0[N], ce[N], cwp[N], nxor[N];
   uint8_t m0[K], me[K], mi[K], misub[K], e2sub[N], e2[N], ui[N], r2pat[N], temp[K];
   float rx[N], absrx[N], absrxp[N], arr1[N + 1];
@@ -291,7 +291,7 @@ void ftx_ldpc_osd174_91(ftx_ldpc_ctx *ctx, const float llr[174], int k, const ui
     absrx[i] = fabsf(rx[i]);
     arr1[i + 1] = absrx[i];
   }
-  indexx(arr1, N, indx);
+  ftx_indexx(arr1, N, indx);
 
   /* columns of the generator in order of decreasing reliability */
   for (int i = 0; i < N; i++) {

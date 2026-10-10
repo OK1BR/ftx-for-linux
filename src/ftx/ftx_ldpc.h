@@ -44,6 +44,8 @@ typedef struct ftx_ldpc_ctx {
   int32_t fp[FTX_OSD_FPSIZE];
   int32_t np[FTX_OSD_MAXPAIRS + 1];
   int32_t lastpat, inext;
+  /* OSD scratch: the reduced generator matrix of the current call */
+  uint8_t genmrb[FTX_LDPC_K][FTX_LDPC_N];
 } ftx_ldpc_ctx;
 
 void ftx_ldpc_init(ftx_ldpc_ctx *ctx);

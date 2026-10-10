@@ -11,7 +11,8 @@ vectors are development material and are not part of this repository).
 | `ftx_crc14` | `lib/crc14.cpp` (Boost `augmented_crc<14,0x2757>`), `lib/ft8/get_crc14.f90` | done |
 | `ftx_pack77` | `lib/77bit/packjt77.f90` (`pack77`, `unpack77`, all `pack77_*`, `pack28`/`unpack28`, hash tables, free text), `lib/chkcall.f90`, `lib/fmtmsg.f90` | done |
 | `ftx_ldpc` | `lib/ft8/encode174_91.f90`, `encode174_91_nocrc.f90`, `decode174_91.f90` (hybrid BP/OSD), `osd174_91.f90`, `ldpc_174_91_c_generator/parity.f90`, `lib/indexx.f90`, `lib/platanh.f90` | done |
-| `ftx_ft8_sync` | `lib/ft8/sync8.f90`, `sync8d.f90`, `ft8_downsample.f90` | — |
+| `ftx_fft` | `lib/four2a.f90` (FFTW3 plans, here planned once per context) | done |
+| `ftx_ft8_sync` | `lib/ft8/sync8.f90`, `sync8d.f90`, `ft8_downsample.f90`, `twkfreq1.f90`, `get_spectrum_baseline.f90`, `lib/baseline.f90`, `nuttal_window.f90`, `pctile.f90`, `shell.f90`, `polyfit.f90`, `determ.f90` | done |
 | `ftx_ft8` | `lib/ft8/ft8b.f90`, `lib/ft8_decode.f90`, `subtractft8.f90`, `ft8apset.f90` | — |
 | `ftx_ft4` | `lib/ft4/*.f90`, `lib/ft4_decode.f90` | — |
 
