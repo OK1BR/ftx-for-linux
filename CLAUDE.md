@@ -100,8 +100,11 @@ Parked: Fox/Hound, contest exchanges on TX, PSK Reporter, wideband IQ decode.
 
 ## Status
 
-2026-10-10: project founded (decisions above). Nothing built yet. Next:
-project scaffold from the family template, WSJT-X v3.0.2 clone to
-`~/.local/opt/wsjtx`, then packjt77 → CRC14 → LDPC → sync8/ft8b as the
-first ported modules, each with bit-exact vectors. Creating the public
-GitHub repo and installing AUR `wsjtx` both need Richard's explicit "ano".
+2026-10-10: project founded (decisions above); public repo
+https://github.com/OK1BR/ftx-for-linux created with Richard's consent
+(homepage rifak.cz per the family rule; the repo *description* is still
+empty — public text, show Richard the wording before setting it). Nothing
+built yet. Next: project scaffold from the family template, WSJT-X v3.0.2
+clone to `~/.local/opt/wsjtx`, then packjt77 → CRC14 → LDPC → sync8/ft8b as
+the first ported modules, each with bit-exact vectors. Installing AUR `wsjtx`
+needs Richard's explicit "ano" (system change).
