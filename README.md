@@ -8,8 +8,8 @@ member of the OK1BR family ([sdr-for-linux](https://github.com/OK1BR/sdr-for-lin
 TCI only.
 
 > **Status: phase 1, nothing usable yet.** The FT8/FT4 decoders are being
-> ported by hand from WSJT-X (Fortran 90) to C, module by module, each gated
-> by bit-exact tests against vectors produced by WSJT-X itself. Follow
+> ported by hand from WSJT-X (Fortran 90) to C, module by module, each
+> verified bit-exactly against WSJT-X itself. Follow
 > [docs/PORT-MAP.md](docs/PORT-MAP.md) for what exists.
 
 ## Provenance
@@ -27,18 +27,13 @@ this program are licensed under the GNU GPL v3 (or later); see
 ## Layout
 
 - `src/ftx/` — `libftx`, the decoder core: C99 + FFTW3 only, no GLib,
-  stateless context structs so several decoders can run in one process.
-- `tests/` — bit-exact unit gates (`meson test -C build`);
-  `tests/vectors/` holds vectors generated from WSJT-X.
-- `tools/vectors/` — the dev-only generators of those vectors (built
-  against a WSJT-X source tree, never part of the product).
+  explicit context structs so several decoders can run in one process.
 
 ## Build
 
 ```sh
 meson setup build
 meson compile -C build
-meson test -C build
 ```
 
 Dependencies: meson, a C99 compiler, FFTW3 (`fftw3`, `fftw3f`).

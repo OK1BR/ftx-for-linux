@@ -48,6 +48,13 @@ dir `ftx-for-linux`. License **GPL-3.0-or-later** (a derivative of WSJT-X).
 
 ## Phase 1 (Richard: "v první fázi FT8 a FT4 dekodéry funkční")
 
+**Repository content rule (Richard, 2026-10-10): the public repo holds
+finished code and libraries only.** Tests in any language, vector generators
+(Fortran/C++ drivers) and vector files stay local in `dev/` (gitignored:
+`dev/tests/`, `dev/tools/`); the root meson.build picks `dev/tests` up when
+present, so `meson test -C build` is the local gate and never a repo artifact.
+Commit and push after each finished module ("průběžně ukládat na GitHub").
+
 Deliverable: CLI `ftx-decode` (WAV in, WSJT-X-style decode lines out) for
 **FT8 and FT4**, depth 3 incl. a-priori (AP) decoding, multipass with signal
 subtraction, and the **complete** 77-bit message unpacking (`packjt77`; the
@@ -111,18 +118,19 @@ empty — public text, show Richard the wording before setting it).
 2026-10-10 (evening): WSJT-X v3.0.2 (git ccdfaf3) shallow-cloned to
 `~/.local/opt/wsjtx` (sample WAVs are in the tree: `samples/FT8/210703_133430.wav`,
 `samples/FT4/000000_000002.wav`). Scaffold from the family template (meson,
-GPL-3 LICENSE, README, CI gates job on tags/PRs/dispatch only, `docs/PORT-MAP.md`).
+GPL-3 LICENSE, README, CI build job on tags/PRs/dispatch only, `docs/PORT-MAP.md`).
 First two modules ported with passing bit-exact gates (`meson test -C build`):
 `ftx_hash` (13 vectors from WSJT-X `tests/unit/packjt77/`) and `ftx_crc14`
 (314 vectors dumped from WSJT-X's own `lib/crc14.cpp` by
-`tools/vectors/crc14_dump.cpp`; Boost headers are installed, no Fortran needed).
+`dev/tools/vectors/crc14_dump.cpp`; Boost headers are installed, no Fortran needed).
 gcc-fortran installed with Richard's consent (2026-10-10, dev/test only; the
 WSJT-X Fortran is compiled per file straight from the clone, no CMake/Qt).
 Third module `ftx_pack77` (the complete 77-bit codec incl. chkcall/fmtmsg,
-state in `ftx_pack77_ctx`) ported and gated: `tools/vectors/pack77_dump.f90`
+state in `ftx_pack77_ctx`) ported and gated: `dev/tools/vectors/pack77_dump.f90`
 drives WSJT-X's own `packjt77` over the scenario files in
-`tools/vectors/pack77/`, 1 693 pack + 12 697 unpack vectors, 0 mismatches
-(see tools/vectors/README.md for the pinned-UB flags and the in/out `c77`).
+`dev/tools/vectors/pack77/`, 1 693 pack + 12 697 unpack vectors, 0 mismatches
+(see dev/tools/vectors/README.md for the pinned-UB flags and the in/out `c77`).
 Next: `ftx_ldpc` (encode174_91 + bpdecode174_91 + osd174_91, generator/parity
 tables), then sync8/ft8b. Installing AUR `wsjtx` (jt9 oracle) is a later,
-separate consent. Not committed yet (harness rule: commit only when asked).
+separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
+dev/ material in history; the follow-up commit removes it from the tree).

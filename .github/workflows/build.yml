@@ -1,7 +1,7 @@
 # CI — runs at release time only (family rule, Richard 2026-07-12: no CI on
-# every commit; the local `meson test` gate covers development).  One job so
-# far: build libftx and run the bit-exact unit gates on ubuntu-26.04.
-# Packaging jobs (AppImage/.deb/.rpm) arrive with the first installable app.
+# every commit; the local gates cover development).  One job so far: build
+# libftx on ubuntu-26.04.  Packaging jobs (AppImage/.deb/.rpm) arrive with
+# the first installable app.
 name: build
 
 on:
@@ -27,5 +27,3 @@ jobs:
         run: |
           meson setup build
           meson compile -C build
-      - name: Unit gates
-        run: meson test -C build --print-errorlogs
