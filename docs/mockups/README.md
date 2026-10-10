@@ -97,12 +97,15 @@ canvas to the window.
 
 ```sh
 gtk4-broadwayd :21 &                                   # listens on TCP 8101
-GDK_BACKEND=broadway BROADWAY_DISPLAY=:21 ./ftx-mock-main &
-sleep 3
+XDG_CONFIG_HOME=$(mktemp -d) GDK_BACKEND=broadway BROADWAY_DISPLAY=:21 ./ftx-mock-main &
+sleep 5                                                # a heavy user theme needs the time
 google-chrome-stable --headless=new --disable-gpu --hide-scrollbars \
   --window-size=1520,960 --timeout=4000 --screenshot=raw.png http://127.0.0.1:8101/
 magick raw.png -trim +repage ftx_main_window.png
 ```
+
+The empty `XDG_CONFIG_HOME` keeps the user's `gtk.css` out, so the picture is
+stock Adwaita dark; leave it off for the user-theme variant.
 
 Preference pages the same way with `./ftx-mock-prefs`, `MOCK_PAGE=<page>` and
 `--window-size=800,860`. Three things that cost time to find out: the Broadway
@@ -116,8 +119,9 @@ client, because frames are painted only when the client acknowledges them.
 
 The PNGs show stock Adwaita dark (rendered with an empty `XDG_CONFIG_HOME`,
 so no user stylesheet is loaded). `ftx_main_window_user_theme.png` is the same
-window on the author's desktop, where `~/.config/gtk-4.0/gtk.css` (USER
-priority, above application CSS) recolours every stock widget — black window,
-white active toggles, so the red *Enable TX* becomes a white one. That is the
-reason the TX state is also carried by custom-drawn elements (transmission
-card, `on air` tag, status bar), which a user stylesheet does not touch.
+window rendered with the author's own GTK stylesheet, `~/.config/gtk-4.0/gtk.css`
+(USER priority, above application CSS), which recolours every stock widget —
+black window, white active toggles, so the red *Enable TX* becomes a white
+one. That is the reason the TX state is also carried by custom-drawn elements
+(transmission card, `on air` tag, status bar), which a user stylesheet does
+not touch.
