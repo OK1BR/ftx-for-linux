@@ -44,6 +44,8 @@ struct _FtxTciClient {
   GString    *txt;
   GByteArray *bin;
   guint       blocks;
+  gint64      last_block_us;  /* arrival of the last audio block            */
+  gboolean    lost;           /* stream watchdog fired                       */
   float      *mono;           /* de-interleaved block                        */
   gsize       mono_cap;
   gboolean    warned_fmt, warned_short, warned_rx, warned_bogus;
@@ -154,6 +156,7 @@ static void handle_block(FtxTciClient *c)
   }
   const guint ch = h[7] ? h[7] : 1;
   const guint nframes = scalars / ch;
+  c->last_block_us = g_get_monotonic_time();
   if (c->blocks++ == 0)
     g_message("tci: RX audio up — %u Hz, %s, %u channel(s), %u frames/block", h[1],
               h[2] == STREAM_FMT_FLOAT ? "float32" : "int16", ch, nframes);
@@ -177,6 +180,7 @@ static int client_cb(struct lws *wsi, enum lws_callback_reasons reason, void *us
 {
   FtxTciClient *c = lws_context_user(lws_get_context(wsi));
   (void)user;
+  if (g_getenv("FTX_TCI_DEBUG")) g_message("tci: lws reason %d", (int)reason);
   switch (reason) {
   case LWS_CALLBACK_CLIENT_ESTABLISHED:
     g_mutex_lock(&c->lock);
@@ -220,13 +224,22 @@ static int client_cb(struct lws *wsi, enum lws_callback_reasons reason, void *us
     g_mutex_unlock(&c->lock);
     return -1;
   case LWS_CALLBACK_CLIENT_CLOSED:
+  case LWS_CALLBACK_WSI_DESTROY: {
+    /* the peer closed (or the socket died): either reason may arrive first,
+     * report the loss once */
+    gboolean was_up;
     g_mutex_lock(&c->lock);
+    was_up = c->up;
     c->up = FALSE;
     c->wsi = NULL;
     g_cond_broadcast(&c->cond);
     g_mutex_unlock(&c->lock);
-    if (g_atomic_int_get(&c->run) && c->closed_cb) c->closed_cb(c->closed_cb_data);
+    if (was_up && !c->lost && g_atomic_int_get(&c->run) && c->closed_cb) {
+      c->lost = TRUE;
+      c->closed_cb(c->closed_cb_data);
+    }
     return 0;
+  }
   default:
     return 0;
   }
@@ -236,6 +249,19 @@ static const struct lws_protocols c_protocols[] = {
   { "tci", client_cb, 0, 8192, 0, NULL, 0 },
   { NULL, NULL, 0, 0, 0, NULL, 0 }
 };
+
+/* Stream watchdog: audio is continuous once audio_start was acknowledged; a
+ * server that died without a TCP close (or whose close lws did not surface)
+ * shows up as silence.  Fires closed_cb once. */
+#define STREAM_LOST_US (3 * G_TIME_SPAN_SECOND)
+static void check_stream(FtxTciClient *c)
+{
+  if (c->lost || !c->started || c->blocks == 0) return;
+  if (g_get_monotonic_time() - c->last_block_us < STREAM_LOST_US) return;
+  c->lost = TRUE;
+  g_warning("tci: no audio block for %d s — connection considered lost", (int)(STREAM_LOST_US / G_TIME_SPAN_SECOND));
+  if (c->closed_cb) c->closed_cb(c->closed_cb_data);
+}
 
 static gpointer service_thread(gpointer data)
 {
@@ -247,6 +273,7 @@ static gpointer service_thread(gpointer data)
     g_mutex_unlock(&c->lock);
     if (pending && wsi) lws_callback_on_writable(wsi);
     lws_service(c->ctx, 0);
+    check_stream(c);
     g_usleep(1000);
   }
   return NULL;
@@ -371,6 +398,8 @@ void ftx_tci_client_stop(FtxTciClient *c)
   g_string_set_size(c->txt, 0);
   g_byte_array_set_size(c->bin, 0);
   c->blocks = 0;
+  c->lost = FALSE;
+  c->last_block_us = 0;
   c->warned_fmt = c->warned_short = c->warned_rx = c->warned_bogus = FALSE;
 }
 
