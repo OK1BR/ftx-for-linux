@@ -147,7 +147,10 @@ The oracle is our own Fortran driver linked from the v3.0.2 sources, so the
 AUR `wsjtx`/`jt9` is only an optional cross-check now. Milestones 2+3 done: `ftx_ft8_a7a8` (ft8_a7d, getmsg, ft8_a8d, genft8,
 smo121, db) ported; ft8b refactored into shared refine/bit-metric helpers;
 gates with my/DX call set (AP types 1/3/4/6, a8 on 3 files, a7 on two-period
-sequences) all bit-exact — 57 local gates green. Not ported: real-time
-wall-clock bail-outs (ldiskdat=false; live RX phase), FT4. Next: FT4. Installing AUR `wsjtx` (jt9 oracle) is a later,
+sequences) all bit-exact — 57 local gates green. FT4 ported too (`ftx_ft4`, own context; decode lines bit-exact vs
+`ft4_decode_dump.f90` on the FT4 sample, 5 synthetic and 5 AP-only files;
+CLI `-5`). 76 local gates green. Phase 1 decoder deliverable is complete.
+Not ported: real-time wall-clock bail-outs (ldiskdat=false; live RX phase).
+Next: phase 2 — TX encoder API + jt9 verification, TCI recorder, live RX. Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).

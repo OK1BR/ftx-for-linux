@@ -16,7 +16,7 @@ vectors are development material and are not part of this repository).
 | `ftx_ft8_demod` | `lib/ft8/ft8b.f90` (ft8b, normalizebmet), `ft8apset.f90`, `genft8.f90` (tones), `gen_ft8wave.f90`, `subtractft8.f90`, `lib/peakup.f90`, `ft2/gfsk_pulse.f90`, stdcall | done |
 | `ftx_ft8_decode` | `lib/ft8_decode.f90` (multi-pass driver, early decodes at nzhsym 41/47/50, subtraction, duplicates, jt9 line format), `lib/ft8/ft8_a7.f90` (`ft8_a7_save` table bookkeeping) | done |
 | `ftx_ft8_a7a8` | `lib/ft8/ft8_a7.f90` (`ft8_a7d`, `getmsg`), `ft8_a8d.f90`, `genft8.f90`, `lib/smo121.f90`, `lib/db.f90` | done |
-| `ftx_ft4` | `lib/ft4/*.f90`, `lib/ft4_decode.f90` | — |
+| `ftx_ft4` | `lib/ft4_decode.f90`, `lib/ft4/getcandidates4.f90`, `ft4_baseline.f90`, `ft4_downsample.f90`, `sync4d.f90`, `get_ft4_bitmetrics.f90`, `genft4.f90`, `gen_ft4wave.f90`, `subtractft4.f90` | done |
 
 Not ported on purpose: `bpdecode174_91.f90` (no caller outside the ft8var
 decoder in v3.0.2; `decode174_91` carries its own BP) and

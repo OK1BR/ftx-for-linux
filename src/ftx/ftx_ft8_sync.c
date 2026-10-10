@@ -196,14 +196,13 @@ static void polyfit(const double *x, const double *y, int npts, int nterms, doub
   }
 }
 
-static void baseline(float *s, int nfa, int nfb, float *sbase)   /* baseline.f90; s is modified (dB) */
+/* The lower-envelope polynomial fit shared by baseline.f90 (FT8) and
+ * ft4_baseline.f90: converts s(ia:ib) to dB in place and writes the fitted
+ * baseline (dB, + 0.65) to sbase(ia:ib). */
+void ftx_baseline_fit(float *s, int ia, int ib, float *sbase)
 {
   const int nseg = 10, npct = 10;
   double x[1000], y[1000], a[5];
-  double df = 12000.0 / 3840.0;
-  int ia = (int)lround(nfa / df);
-  if (ia < 1) ia = 1;
-  int ib = (int)lround(nfb / df);
   for (int i = ia; i <= ib; i++) s[i - 1] = 10.0f * log10f(s[i - 1]);
 
   int nterms = 5;
@@ -225,11 +224,20 @@ static void baseline(float *s, int nfa, int nfb, float *sbase)   /* baseline.f90
   }
   for (int i = 0; i < 5; i++) a[i] = 0.0;
   polyfit(x, y, k, nterms, a);
-  for (int i = 0; i < NH1; i++) sbase[i] = 0.0f;
   for (int i = ia; i <= ib; i++) {
     double t = i - i0;
     sbase[i - 1] = (float)(a[0] + t * (a[1] + t * (a[2] + t * (a[3] + t * (a[4])))) + (double)0.65f);
   }
+}
+
+static void baseline(float *s, int nfa, int nfb, float *sbase)   /* baseline.f90; s is modified (dB) */
+{
+  double df = 12000.0 / 3840.0;
+  int ia = (int)lround(nfa / df);
+  if (ia < 1) ia = 1;
+  int ib = (int)lround(nfb / df);
+  for (int i = 0; i < NH1; i++) sbase[i] = 0.0f;
+  ftx_baseline_fit(s, ia, ib, sbase);
 }
 
 void ftx_ft8_spectrum_baseline(ftx_ft8_ctx *ctx, const float *dd, int *nfa, int *nfb, float *sbase)

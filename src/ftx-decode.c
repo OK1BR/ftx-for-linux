@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ftx/ftx_ft4.h"
 #include "ftx/ftx_ft8.h"
 
 #ifndef FTX_VERSION
@@ -41,6 +42,16 @@ static void on_decode(void *user, float sync, int snr, float dt, float freq, con
   c->ndecodes++;
 }
 
+static void on_decode4(void *user, float sync, int snr, float dt, float freq, const char *decoded, int nap, float qual)
+{
+  struct cbctx *c = user;
+  char line[96];
+  (void)sync;
+  ftx_ft4_format_line(line, sizeof line, c->nutc, snr, dt, freq, decoded, nap, qual);
+  puts(line);
+  c->ndecodes++;
+}
+
 static int nutc_from_name(const char *path)
 {
   const char *base = strrchr(path, '/');
@@ -55,7 +66,7 @@ static int nutc_from_name(const char *path)
   return v;
 }
 
-static int read_wav(const char *path, int16_t *iwave)
+static int read_wav(const char *path, int16_t *iwave, size_t nmax)
 {
   FILE *fp = fopen(path, "rb");
   if (fp == NULL) {
@@ -72,25 +83,26 @@ static int read_wav(const char *path, int16_t *iwave)
   int bits = hdr[34] | hdr[35] << 8, chans = hdr[22] | hdr[23] << 8;
   if (rate != 12000 || bits != 16 || chans != 1)
     fprintf(stderr, "%s: warning: expected 12000 S/s 16-bit mono, got %d S/s %d-bit %d ch\n", path, rate, bits, chans);
-  memset(iwave, 0, FT8_NMAX * sizeof(int16_t));
-  size_t n = fread(iwave, sizeof(int16_t), FT8_NMAX, fp);
+  memset(iwave, 0, nmax * sizeof(int16_t));
+  size_t n = fread(iwave, sizeof(int16_t), nmax, fp);
   fclose(fp);
-  if (n < FT8_NMAX) fprintf(stderr, "%s: warning: only %zu samples, rest zero\n", path, n);
+  if (n < nmax) fprintf(stderr, "%s: warning: only %zu samples, rest zero\n", path, n);
   return 0;
 }
 
 static void usage(void)
 {
   fprintf(stderr,
-          "ftx-decode %s — FT8 decoder for 15 s WAV files (12000 S/s, 16-bit mono)\n"
+          "ftx-decode %s — FT8/FT4 decoder for WAV files (12000 S/s, 16-bit mono)\n"
           "usage: ftx-decode [options] file.wav...\n"
+          "  -8 / -5      FT8 (default, 15 s files) / FT4 (7.5 s files, 72576 samples read)\n"
           "  -d DEPTH     decoding depth 1..3 (default 3)\n"
           "  -c MYCALL    my callsign for a-priori decoding\n"
           "  -x HISCALL   DX callsign for a-priori decoding\n"
           "  -G GRID      DX grid (reserved for the a8 decoder)\n"
           "  -f HZ        Rx frequency (default 1500)\n"
           "  -Q N         QSO progress 0..5 (default 0)\n"
-          "Output: HHMMSS SNR DT FREQ ~ MESSAGE [aN], as jt9 prints it.\n",
+          "Output: HHMMSS SNR DT FREQ ~ MESSAGE [aN] (FT4: '+'), as jt9 prints it.\n",
           FTX_VERSION);
 }
 
@@ -104,10 +116,13 @@ int main(int argc, char **argv)
   p.ndepth = 3;
   p.napwid = 75;
   p.lapon = true;
+  bool ft4 = false;
   int i = 1;
   for (; i < argc && argv[i][0] == '-' && argv[i][1] != '\0'; i++) {
     const char *a = argv[i];
     if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
+    if (strcmp(a, "-8") == 0) { ft4 = false; continue; }
+    if (strcmp(a, "-5") == 0) { ft4 = true; continue; }
     if (i + 1 >= argc) { usage(); return 2; }
     const char *v = argv[++i];
     if (strcmp(a, "-d") == 0) p.ndepth = atoi(v);
@@ -121,6 +136,33 @@ int main(int argc, char **argv)
   if (i >= argc) { usage(); return 2; }
   if (p.ndepth < 1 || p.ndepth > 3 || p.nQSOProgress < 0 || p.nQSOProgress > 5) { usage(); return 2; }
 
+  if (ft4) {
+    ftx_ft4_ctx *ctx4 = ftx_ft4_ctx_new();
+    if (ctx4 == NULL) {
+      fprintf(stderr, "out of memory\n");
+      return 1;
+    }
+    ftx_ft4_params p4;
+    memset(&p4, 0, sizeof p4);
+    p4.nQSOProgress = p.nQSOProgress;
+    p4.nfqso = p.nfqso;
+    p4.nfa = p.nfa;
+    p4.nfb = p.nfb;
+    p4.ndepth = p.ndepth;
+    p4.ncontest = 0;
+    memcpy(p4.mycall, p.mycall, sizeof p4.mycall);
+    memcpy(p4.hiscall, p.hiscall, sizeof p4.hiscall);
+    int16_t *iwave4 = malloc(FT4_NMAX * sizeof(int16_t));
+    for (; i < argc; i++) {
+      if (read_wav(argv[i], iwave4, FT4_NMAX) != 0) continue;
+      struct cbctx c = { nutc_from_name(argv[i]), p.nfqso, true, 0 };
+      ftx_ft4_decode(ctx4, iwave4, &p4, on_decode4, &c);
+    }
+    free(iwave4);
+    ftx_ft4_ctx_free(ctx4);
+    return 0;
+  }
+
   ftx_ft8_ctx *ctx = ftx_ft8_ctx_new();
   if (ctx == NULL) {
     fprintf(stderr, "out of memory\n");
@@ -129,7 +171,7 @@ int main(int argc, char **argv)
   int16_t *iwave = malloc(FT8_NMAX * sizeof(int16_t));
   int16_t *id2a = malloc(FT8_NMAX * sizeof(int16_t));
   for (; i < argc; i++) {
-    if (read_wav(argv[i], iwave) != 0) continue;
+    if (read_wav(argv[i], iwave, FT8_NMAX) != 0) continue;
     struct cbctx c = { nutc_from_name(argv[i]), p.nfqso, true, 0 };
     static const int seq[3] = { 41, 47, 50 };
     for (int s = 0; s < 3; s++) {       /* jt9's sequence: the decoder expects all three calls */
