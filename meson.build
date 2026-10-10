@@ -24,6 +24,15 @@ executable('ftx-decode', 'src/ftx-decode.c',
   dependencies : [ftx_dep, fftw3f_dep, m_dep],
   install : true)
 
+# The app layer (GLib allowed): TCI client, period assembly, recorder.
+glib_dep = dependency('glib-2.0')
+lws_dep  = dependency('libwebsockets')
+app_src  = files('src/app/tci_client.c', 'src/app/period.c')
+executable('ftx-record', ['src/ftx-record.c', app_src],
+  include_directories : include_directories('src'),
+  dependencies : [glib_dep, lws_dep, m_dep],
+  install : true)
+
 # The bit-exact gates against WSJT-X-generated vectors are development
 # material kept outside the repository (dev/, ignored by git); the build
 # picks them up when present so `meson test -C build` works on the dev box.

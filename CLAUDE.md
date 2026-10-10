@@ -155,8 +155,15 @@ Not ported: real-time wall-clock bail-outs (ldiskdat=false; live RX phase).
 2026-10-11: TX encoder API (`ftx_ft8_tx_tones/_tx_wave`, `ftx_ft4_tx_tones/_tx_wave`,
 real waveform as mainwindow.cpp transmits: 48 kHz, nsps 7680/2304) gated
 bit-exactly vs `dev/tools/vectors/txwave_dump.f90` (19 messages, 4 full
-waveforms, 15 checksums; 12 kHz too). 77 gates green. Next: TCI client +
-recorder (RX-only to sdr-for-linux 192.168.1.18:40001; Richard notified
-2026-10-10, no objection), then live RX. Installing AUR `wsjtx` (jt9 oracle) is a later,
+waveforms, 15 checksums; 12 kHz too). 77 gates green. TCI RX-audio client (`src/app/tci_client.[ch]`, libwebsockets + GLib,
+modelled on skimmer-for-linux's IQ client; commands audio_samplerate:12000,
+audio_stream_channels:1, audio_start:0; Stream type 1 float32), UTC period
+assembler (`src/app/period.[ch]`: sample counting anchored to CLOCK_REALTIME,
+re-anchor above 100 ms drift, gap figure for partial periods; unit test with
+an injected clock) and `ftx-record`. End-to-end test against
+`dev/tools/tci_mock_server.c` (streams a WAV UTC-aligned): recordings decode
+identically to the source, DT preserved. The real sdr-for-linux server was
+not running during this work (connection refused on :40001); the first live
+connection is still pending. Next: `ftx-rx` live decoding, then live test. Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).

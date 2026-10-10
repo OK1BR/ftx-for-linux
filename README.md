@@ -40,6 +40,14 @@ this program are licensed under the GNU GPL v3 (or later); see
   ```
   `-5` selects FT4 (7.5 s files), `-c MYCALL -x HISCALL` enable a-priori
   decoding, `-d 1..3` sets the depth.
+- `src/app/` — the GLib layer above the core: TCI client (RX audio from
+  sdr-for-linux / icom-for-linux), UTC-aligned period assembly.
+- `src/ftx-record.c` — records UTC-aligned 15 s (or 7.5 s) periods from a
+  TCI radio as WSJT-X-style `YYMMDD_HHMMSS.wav` files (12000 S/s, 16-bit):
+
+  ```sh
+  ftx-record -H 192.168.1.18 -p 40001 -n 10 ~/ft8-recordings
+  ```
 
 ## Build
 
@@ -48,4 +56,5 @@ meson setup build
 meson compile -C build
 ```
 
-Dependencies: meson, a C99 compiler, FFTW3 (`fftw3`, `fftw3f`).
+Dependencies: meson, a C99 compiler, FFTW3 (`fftw3`, `fftw3f`); the app layer
+adds GLib and libwebsockets.
