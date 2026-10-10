@@ -152,6 +152,11 @@ sequences) all bit-exact — 57 local gates green. FT4 ported too (`ftx_ft4`, ow
 `ft4_decode_dump.f90` on the FT4 sample, 5 synthetic and 5 AP-only files;
 CLI `-5`). 76 local gates green. Phase 1 decoder deliverable is complete.
 Not ported: real-time wall-clock bail-outs (ldiskdat=false; live RX phase).
-Next: phase 2 — TX encoder API + jt9 verification, TCI recorder, live RX. Installing AUR `wsjtx` (jt9 oracle) is a later,
+2026-10-11: TX encoder API (`ftx_ft8_tx_tones/_tx_wave`, `ftx_ft4_tx_tones/_tx_wave`,
+real waveform as mainwindow.cpp transmits: 48 kHz, nsps 7680/2304) gated
+bit-exactly vs `dev/tools/vectors/txwave_dump.f90` (19 messages, 4 full
+waveforms, 15 checksums; 12 kHz too). 77 gates green. Next: TCI client +
+recorder (RX-only to sdr-for-linux 192.168.1.18:40001; Richard notified
+2026-10-10, no objection), then live RX. Installing AUR `wsjtx` (jt9 oracle) is a later,
 separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
 dev/ material in history; the follow-up commit removes it from the tree).

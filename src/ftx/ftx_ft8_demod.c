@@ -32,7 +32,7 @@ bool ftx_ft8_demod_init(ftx_ft8_ctx *ctx)
       ctx->gw_ctab[i] = FTX_CMPLXF(cosf(phi), sinf(phi));
     }
   }
-  ctx->gw_dphi = calloc((size_t)(FT8_NN + 2) * FT8_NSPS, sizeof(float));
+  ctx->gw_dphi = calloc((size_t)(FT8_NN + 2) * 4 * FT8_NSPS, sizeof(float));   /* up to nsps 7680 (48 kHz TX) */
   ftx_fft_plan_c2c(&ctx->fft_sub_fwd, NFFT, -1);
   ftx_fft_plan_c2c(&ctx->fft_sub_bwd, NFFT, +1);
   ftx_fft_plan_r2c(&ctx->fft_sub_r2c, NFFT);
@@ -211,10 +211,10 @@ static float gfsk_pulse(float b, float t)
   return 0.5f * (erff(c * b * (t + 0.5f)) - erff(c * b * (t - 0.5f)));
 }
 
-void ftx_gen_ft8wave(ftx_ft8_ctx *ctx, const int *itone, int nsym, int nsps, float bt, float fsample,
-                     float f0, fftwf_complex *cwavev, int nwave)
+/* gen_ft8wave: the smoothed frequency waveform dphi, (nsym+2)*nsps samples */
+static void gen_ft8wave_dphi(ftx_ft8_ctx *ctx, const int *itone, int nsym, int nsps, float bt, float fsample,
+                             float f0)
 {
-  float complex *cwave = (float complex *)cwavev;
   const float twopi = 8.0f * atanf(1.0f);
   float dt = 1.0f / fsample;
   float hmod = 1.0f;
@@ -238,12 +238,20 @@ void ftx_gen_ft8wave(ftx_ft8_ctx *ctx, const int *itone, int nsym, int nsps, flo
   for (int i = 0; i < 2 * nsps; i++) dphi[i] = dphi[i] + dphi_peak * itone[0] * ctx->gw_pulse[nsps + i];
   for (int i = 0; i < 2 * nsps; i++)
     dphi[nsym * nsps + i] = dphi[nsym * nsps + i] + dphi_peak * itone[nsym - 1] * ctx->gw_pulse[i];
-
-  float phi = 0.0f;
   for (int i = 0; i < ndphi; i++) dphi[i] = dphi[i] + twopi * f0 * dt;   /* shift up by f0 */
+}
+
+void ftx_gen_ft8wave(ftx_ft8_ctx *ctx, const int *itone, int nsym, int nsps, float bt, float fsample,
+                     float f0, fftwf_complex *cwavev, int nwave)
+{
+  float complex *cwave = (float complex *)cwavev;
+  const float twopi = 8.0f * atanf(1.0f);
+  gen_ft8wave_dphi(ctx, itone, nsym, nsps, bt, fsample, f0);
+  const float *dphi = ctx->gw_dphi;
+  float phi = 0.0f;
   for (int k = 0; k < nwave; k++) cwave[k] = 0.0f;
   int k = 0;
-  for (int j = nsps; j <= nsps + nwave - 1; j++) {
+  for (int j = nsps; j <= nsps + nwave - 1; j++) {   /* skip the dummy symbol */
     int i = (int)(phi * (float)FT8_NTAB / twopi);
     cwave[k++] = ctx->gw_ctab[i];
     phi = fmodf(phi + dphi[j], twopi);
@@ -256,6 +264,37 @@ void ftx_gen_ft8wave(ftx_ft8_ctx *ctx, const int *itone, int nsym, int nsps, flo
     int idx = k1 - 1 + i;
     if (idx < nwave) cwave[idx] = cwave[idx] * ((1.0f + cosf(twopi * i / (2.0f * nramp))) / 2.0f);
   }
+}
+
+void ftx_ft8_tx_wave(ftx_ft8_ctx *ctx, const int itone[79], int nsps, float fsample, float f0,
+                     float *wave, int nwave)
+{
+  const float twopi = 8.0f * atanf(1.0f);
+  gen_ft8wave_dphi(ctx, itone, FT8_NN, nsps, 2.0f, fsample, f0);
+  const float *dphi = ctx->gw_dphi;
+  float phi = 0.0f;
+  for (int k = 0; k < nwave; k++) wave[k] = 0.0f;
+  int k = 0;
+  for (int j = nsps; j <= nsps + nwave - 1; j++) {
+    wave[k++] = sinf(phi);
+    phi = fmodf(phi + dphi[j], twopi);
+  }
+  int nramp = (int)lroundf(nsps / 8.0f);
+  for (int i = 0; i < nramp; i++)
+    wave[i] = wave[i] * ((1.0f - cosf(twopi * i / (2.0f * nramp))) / 2.0f);
+  int k1 = FT8_NN * nsps - nramp + 1;
+  for (int i = 0; i < nramp; i++) {
+    int idx = k1 - 1 + i;
+    if (idx < nwave) wave[idx] = wave[idx] * ((1.0f + cosf(twopi * i / (2.0f * nramp))) / 2.0f);
+  }
+}
+
+bool ftx_ft8_tx_tones(ftx_ft8_ctx *ctx, const char *msg, char msgsent[38], int itone[79])
+{
+  uint8_t msgbits[77];
+  int i3, n3;
+  ftx_ft8_genft8(ctx, msg, &i3, &n3, msgsent, msgbits, itone);
+  return strcmp(msgsent, "*** bad message ***") != 0;
 }
 
 /* ------------------------------------------------------------------------

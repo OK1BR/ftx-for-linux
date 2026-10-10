@@ -58,8 +58,9 @@ struct ftx_ft4_ctx {
   float complex csync[4][2 * NSS];          /* sync4d: the four Costas arrays, half rate */
   float complex ctwk2[33][2 * NSS];         /* decode: frequency tweaks for idf -16..16  */
   int mcq[29], mcqru[29], mcqfd[29], mcqtest[29], mcqww[29];   /* scrambled, +1/-1 */
-  float gw_pulse[3 * FT4_NSPS];             /* gen_ft4wave pulse           */
-  float *gw_dphi;                           /* (NN+2)*NSPS                 */
+  float gw_pulse[3 * 4 * FT4_NSPS];         /* gen_ft4wave pulse (up to nsps 2304) */
+  int   gw_nsps0;                           /* nsps the pulse was computed for     */
+  float *gw_dphi;                           /* (NN+2)*nsps, up to nsps 2304        */
   float complex *sub_cw;                    /* subtractft4 filter spectrum */
   float complex *sub_cref;                  /* NFRAME4                     */
   float complex *sub_camp;                  /* NMAX                        */
@@ -85,7 +86,7 @@ ftx_ft4_ctx *ftx_ft4_ctx_new(void)
   ftx_fft_plan_c2c(&ctx->fft_sub_fwd, NMAX, -1);
   ftx_fft_plan_c2c(&ctx->fft_sub_bwd, NMAX, +1);
   ctx->s = calloc((size_t)NH1 * FT4_NHSYM, sizeof(float));
-  ctx->gw_dphi = calloc((size_t)(NN + 2) * FT4_NSPS, sizeof(float));
+  ctx->gw_dphi = calloc((size_t)(NN + 2) * 4 * FT4_NSPS, sizeof(float));
   ctx->sub_cw = fftwf_malloc((size_t)NMAX * sizeof(float complex));
   ctx->sub_cref = calloc(NFRAME4, sizeof(float complex));
   ctx->sub_camp = calloc(NMAX, sizeof(float complex));
@@ -152,14 +153,7 @@ ftx_ft4_ctx *ftx_ft4_ctx_new(void)
     memset(ctx->mycall0, ' ', 12); ctx->mycall0[12] = '\0';
     memset(ctx->hiscall0, ' ', 12); ctx->hiscall0[12] = '\0';
   }
-  /* gen_ft4wave pulse (bt = 1) */
-  {
-    float c = pi * sqrtf(2.0f / logf(2.0f));
-    for (int i = 1; i <= 3 * FT4_NSPS; i++) {
-      float tt = (i - 1.5f * FT4_NSPS) / (float)FT4_NSPS;
-      ctx->gw_pulse[i - 1] = 0.5f * (erff(c * 1.0f * (tt + 0.5f)) - erff(c * 1.0f * (tt - 0.5f)));
-    }
-  }
+  ctx->gw_nsps0 = 0;                                  /* gen_ft4wave pulse computed on first use */
   /* subtractft4 filter and its spectrum */
   {
     float fac = 1.0f / (float)NMAX;
@@ -454,11 +448,21 @@ static void ft4_tones_from_77bits(const uint8_t *msgbits77, int i4tone[NN])
   for (int i = 0; i < 4; i++) i4tone[99 + i] = icos4d[i];
 }
 
-static void gen_ft4wave(ftx_ft4_ctx *ctx, const int *itone, int nsym, int nsps, float fsample, float f0,
-                        float complex *cwave, int nwave)
+/* gen_ft4wave: the pulse (BT 1, cached for the nsps in use) and the smoothed
+ * frequency waveform dphi of (nsym+2)*nsps samples */
+static void gen_ft4wave_dphi(ftx_ft4_ctx *ctx, const int *itone, int nsym, int nsps, float fsample, float f0)
 {
   const float twopi = 8.0f * atanf(1.0f);
   float dt = 1.0f / fsample, hmod = 1.0f;
+  if (nsps != ctx->gw_nsps0) {
+    const float pi = 4.0f * atanf(1.0f);
+    float c = pi * sqrtf(2.0f / logf(2.0f));
+    for (int i = 1; i <= 3 * nsps; i++) {
+      float tt = (i - 1.5f * nsps) / (float)nsps;
+      ctx->gw_pulse[i - 1] = 0.5f * (erff(c * 1.0f * (tt + 0.5f)) - erff(c * 1.0f * (tt - 0.5f)));
+    }
+    ctx->gw_nsps0 = nsps;
+  }
   float *dphi = ctx->gw_dphi;
   int ndphi = (nsym + 2) * nsps;
   float dphi_peak = twopi * hmod / (float)nsps;
@@ -467,8 +471,17 @@ static void gen_ft4wave(ftx_ft4_ctx *ctx, const int *itone, int nsym, int nsps, 
     int ib = (j - 1) * nsps;
     for (int i = 0; i < 3 * nsps; i++) dphi[ib + i] = dphi[ib + i] + dphi_peak * ctx->gw_pulse[i] * itone[j - 1];
   }
-  float phi = 0.0f;
   for (int i = 0; i < ndphi; i++) dphi[i] = dphi[i] + twopi * f0 * dt;
+}
+
+static void gen_ft4wave(ftx_ft4_ctx *ctx, const int *itone, int nsym, int nsps, float fsample, float f0,
+                        float complex *cwave, int nwave)
+{
+  const float twopi = 8.0f * atanf(1.0f);
+  gen_ft4wave_dphi(ctx, itone, nsym, nsps, fsample, f0);
+  const float *dphi = ctx->gw_dphi;
+  int ndphi = (nsym + 2) * nsps;
+  float phi = 0.0f;
   for (int k = 0; k < nwave; k++) cwave[k] = 0.0f;
   int k = 0;
   for (int j = 0; j <= ndphi - 1 && k < nwave; j++) {
@@ -482,6 +495,57 @@ static void gen_ft4wave(ftx_ft4_ctx *ctx, const int *itone, int nsym, int nsps, 
     int idx = k1 - 1 + i;
     if (idx < nwave) cwave[idx] = cwave[idx] * ((1.0f + cosf(twopi * i / (2.0f * nsps))) / 2.0f);
   }
+}
+
+void ftx_ft4_tx_wave(ftx_ft4_ctx *ctx, const int i4tone[103], int nsps, float fsample, float f0,
+                     float *wave, int nwave)
+{
+  const float twopi = 8.0f * atanf(1.0f);
+  gen_ft4wave_dphi(ctx, i4tone, NN, nsps, fsample, f0);
+  const float *dphi = ctx->gw_dphi;
+  int ndphi = (NN + 2) * nsps;
+  float phi = 0.0f;
+  for (int k = 0; k < nwave; k++) wave[k] = 0.0f;
+  int k = 0;
+  for (int j = 0; j <= ndphi - 1 && k < nwave; j++) {
+    wave[k++] = sinf(phi);
+    phi = fmodf(phi + dphi[j], twopi);
+  }
+  for (int i = 0; i < nsps; i++)
+    wave[i] = wave[i] * ((1.0f - cosf(twopi * i / (2.0f * nsps))) / 2.0f);
+  int k1 = (NN + 1) * nsps + 1;
+  for (int i = 0; i < nsps; i++) {
+    int idx = k1 - 1 + i;
+    if (idx < nwave) wave[idx] = wave[idx] * ((1.0f + cosf(twopi * i / (2.0f * nsps))) / 2.0f);
+  }
+}
+
+bool ftx_ft4_tx_tones(ftx_ft4_ctx *ctx, const char *msg0, char msgsent[38], int i4tone[103])
+{
+  /* genft4: NUL terminates, strips leading blanks, packs, unpacks (nrx=0) */
+  char message[38], c77[78];
+  uint8_t msgbits[77];
+  snprintf(message, sizeof message, "%-37.37s", msg0);
+  {
+    int lead = 0;
+    while (lead < 37 && message[lead] == ' ') lead++;
+    if (lead > 0) {
+      memmove(message, message + lead, (size_t)(37 - lead));
+      memset(message + 37 - lead, ' ', (size_t)lead);
+    }
+  }
+  int i3 = -1, n3 = -1;
+  memset(c77, '0', 77);
+  c77[77] = '\0';
+  ftx_pack77(&ctx->pack77, message, &i3, &n3, c77);
+  bool ok = ftx_unpack77(&ctx->pack77, c77, 0, msgsent);
+  if (!ftx_c77_to_bits(c77, msgbits) || !ok) {
+    memset(i4tone, 0, 103 * sizeof(int));
+    snprintf(msgsent, 38, "%s", "*** bad message ***");
+    return false;
+  }
+  ft4_tones_from_77bits(msgbits, i4tone);
+  return true;
 }
 
 static void subtractft4(ftx_ft4_ctx *ctx, float *dd, const int itone[NN], float f0, float dt)

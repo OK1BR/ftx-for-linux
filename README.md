@@ -11,7 +11,8 @@ TCI only.
 > search, demodulation, LDPC/OSD, a-priori decoding, multi-pass subtraction,
 > WSJT-X's a7/a8 decodes) are ported from WSJT-X and reproduce its decodes
 > bit for bit on the reference recordings; the `ftx-decode` command decodes
-> WAV files. Not yet: live radio I/O (TCI), TX, the GUI. Follow
+> WAV files; the transmit side (message → tones → GFSK waveform exactly as
+> WSJT-X sends it) is in the library. Not yet: live radio I/O (TCI), the GUI. Follow
 > [docs/PORT-MAP.md](docs/PORT-MAP.md) for the module list.
 
 ## Provenance

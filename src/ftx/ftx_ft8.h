@@ -165,6 +165,19 @@ typedef void (*ftx_ft8_decode_cb)(void *user, float sync, int snr, float dt, flo
 void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params *p, int nutc,
                     bool ltry_a8, bool ldiskdat, float emedelay, ftx_ft8_decode_cb cb, void *user);
 
+/* --- transmit --- */
+
+/* Tones for a message (genft8): msgsent receives the message as it will be
+ * decoded (NUL terminated, trailing blanks removed).  Returns false for a
+ * message that cannot be packed (msgsent = "*** bad message ***"). */
+bool ftx_ft8_tx_tones(ftx_ft8_ctx *ctx, const char *msg, char msgsent[38], int itone[79]);
+
+/* The transmit waveform (gen_ft8wave, real output): nwave = 79*nsps samples
+ * in [-1, 1] at fsample with nsps samples per symbol (WSJT-X transmits with
+ * fsample 48000 and nsps 7680), carrier f0 Hz, BT 2.0. */
+void ftx_ft8_tx_wave(ftx_ft8_ctx *ctx, const int itone[79], int nsps, float fsample, float f0,
+                     float *wave, int nwave);
+
 /* Format a decode the way jt9 prints it:
  * "HHMMSS SNR  DT FREQ ~  MESSAGE                               aN", with the
  * '?' at column 37 of the message when an AP decode has qual < 0.17.

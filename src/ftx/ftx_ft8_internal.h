@@ -47,7 +47,7 @@ struct ftx_ft8_ctx {
   float gw_pulse[23040];
   float gw_fchk0;
   float complex gw_ctab[FT8_NTAB];
-  float *gw_dphi;                   /* (nsym+2)*nsps, sized for FT8: 81*1920 */
+  float *gw_dphi;                   /* (nsym+2)*nsps, sized for nsps up to 7680 */
 
   /* subtractft8: filter spectrum cw, end corrections, work buffers */
   ftx_fft fft_sub_fwd;              /* c2c 180000 forward (cfilt)  */

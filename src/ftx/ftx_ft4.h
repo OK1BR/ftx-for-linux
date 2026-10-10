@@ -94,6 +94,18 @@ typedef void (*ftx_ft4_decode_cb)(void *user, float sync, int snr, float dt, flo
 void ftx_ft4_decode(ftx_ft4_ctx *ctx, const int16_t *iwave, const ftx_ft4_params *p,
                     ftx_ft4_decode_cb cb, void *user);
 
+/* --- transmit --- */
+
+/* Tones for a message (genft4, ichk = 0); msgsent as it will be decoded.
+ * Returns false for an unpackable message. */
+bool ftx_ft4_tx_tones(ftx_ft4_ctx *ctx, const char *msg, char msgsent[38], int i4tone[103]);
+
+/* The transmit waveform (gen_ft4wave, real output): nwave = 105*nsps
+ * samples (103 symbols plus ramp up/down) at fsample, nsps samples per
+ * symbol (WSJT-X: 48000 and 2304), carrier f0 Hz. */
+void ftx_ft4_tx_wave(ftx_ft4_ctx *ctx, const int i4tone[103], int nsps, float fsample, float f0,
+                     float *wave, int nwave);
+
 /* jt9's FT4 line: like FT8's but with " + " as the mode mark. */
 void ftx_ft4_format_line(char *buf, size_t len, int nutc, int snr, float dt, float freq,
                          const char *decoded, int nap, float qual);
