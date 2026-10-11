@@ -29,7 +29,7 @@ typedef struct {
   double   clock_warn_dt;   /* mean |DT| above which the clock is flagged   */
   gboolean show_dt_health;
   /* [display] */
-  int      palette;         /* 0 blue→yellow, 1 grey, 2 fire                */
+  int      palette;         /* family palette index (0 = Classic)           */
   int      rows_per_s;      /* waterfall rows per second                    */
   gboolean wf_labels;       /* callsigns on the waterfall                   */
   gboolean spectrum_strip;

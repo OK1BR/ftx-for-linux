@@ -224,7 +224,10 @@ His station config was created at `~/.config/ftx-for-linux/config.ini`
 preferences dialog 1000 px wide so the page tabs stay in the header
 (libadwaita drops them to a bottom bar when the switcher does not fit);
 the Tx1–Tx6 list and Auto sequence moved into a popover on the card's
-`TxN · Hz` button ("rarely skipped steps, almost never used it in WSJT-X").
+`TxN · Hz` button ("rarely skipped steps, almost never used it in WSJT-X");
+the waterfall palettes are the family table from sdr-for-linux's
+`waterfall.c` (Classic, Mono white, Mono green, Mono amber, Inferno, Turbo —
+same stops, same names, selectable in Preferences › Display).
 Headless testing note: the app is a unique GApplication — run test
 instances under `dbus-run-session`, or they just activate the live one.
 The live instance is relaunched from `/tmp/ftx-live` (log `app.log`) via

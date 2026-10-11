@@ -4,6 +4,8 @@
 
 #include <string.h>
 
+#include "waterfall.h"
+
 typedef struct {
   FtxSettings    *s;
   FtxPrefsChanged cb;
@@ -178,8 +180,11 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
 
   p = page(pd, "Display", "display", "preferences-desktop-display-symbolic");
   g = group(p, "Waterfall", NULL);
-  static const char *const pal[] = { "Blue → yellow (default)", "Grey", "Fire", NULL };
-  combo(c, g, "Palette", NULL, pal, &s->palette);
+  const char *pal[16] = { NULL };
+  int npal = MIN(ftx_waterfall_palette_count(), 15);
+  for (int i = 0; i < npal; i++) pal[i] = ftx_waterfall_palette_name(i);
+  s->palette = CLAMP(s->palette, 0, npal - 1);
+  combo(c, g, "Palette", "the same schemes as sdr-for-linux and skimmer-for-linux", pal, &s->palette);
   spin(c, g, "Rows per second", NULL, 1, 4, 1, 0, &s->rows_per_s, NULL);
   sw(c, g, "Label decoded signals on the waterfall", NULL, &s->wf_labels);
   sw(c, g, "Spectrum strip above the waterfall", NULL, &s->spectrum_strip);

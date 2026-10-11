@@ -46,24 +46,73 @@ static guint signals[N_SIGNALS];
 
 /* ---- colours ------------------------------------------------------------ */
 
+/* The family's palettes — the table of sdr-for-linux's waterfall.c (also in
+ * skimmer-for-linux): {position 0-1, r, g, b} stops, linearly interpolated;
+ * "Classic" is index 0, the default.  Same names in every program, so the
+ * operator's choice carries over. */
+typedef struct { double t, r, g, b; } PalStop;
+typedef struct { const char *name; const PalStop *stop; int n; } Palette;
+
+/* Classic: black-blue -> cyan -> green -> yellow -> orange -> red. */
+static const PalStop pal_classic[] = {
+  {0.00,   0,   0,  12}, {0.20,   0,  18, 110}, {0.40,   0, 130, 180},
+  {0.58,   0, 200, 120}, {0.74, 180, 220,   0}, {0.88, 255, 165,   0},
+  {1.00, 255,  40,  30},
+};
+/* Mono white: neutral greyscale, black -> white.  High contrast: the noise
+ * floor is held near black, signals ramp hard to pure white. */
+static const PalStop pal_mono_white[] = {
+  {0.00, 0, 0, 0}, {0.30, 6, 6, 6}, {0.58, 90, 90, 90}, {0.80, 210, 210, 210}, {1.00, 255, 255, 255},
+};
+/* Mono green: retro phosphor — near-black floor, bright green signals. */
+static const PalStop pal_mono_green[] = {
+  {0.00, 0, 2, 0}, {0.30, 0, 34, 6}, {0.60, 0, 150, 40}, {0.82, 130, 240, 95}, {1.00, 225, 255, 205},
+};
+/* Mono amber: warm monochrome — near-black floor, bright amber signals. */
+static const PalStop pal_mono_amber[] = {
+  {0.00, 2, 1, 0}, {0.30, 40, 18, 0}, {0.60, 165, 90, 4}, {0.82, 248, 190, 55}, {1.00, 255, 245, 215},
+};
+/* Inferno: perceptually-uniform black -> purple -> red -> orange -> yellow. */
+static const PalStop pal_inferno[] = {
+  {0.00, 0, 0, 4}, {0.15, 22, 11, 57}, {0.30, 66, 10, 104}, {0.45, 114, 31, 107},
+  {0.60, 168, 46, 86}, {0.74, 216, 83, 45}, {0.87, 245, 140, 20}, {1.00, 252, 255, 164},
+};
+/* Turbo: high-detail improved rainbow. */
+static const PalStop pal_turbo[] = {
+  {0.00, 48, 18, 59}, {0.13, 62, 74, 211}, {0.25, 40, 150, 240}, {0.38, 43, 210, 180},
+  {0.50, 130, 235, 80}, {0.62, 220, 220, 40}, {0.75, 250, 150, 30}, {0.88, 230, 60, 20},
+  {1.00, 122, 4, 3},
+};
+
+static const Palette palettes[] = {
+  { "Classic",    pal_classic,    (int)G_N_ELEMENTS(pal_classic)    },
+  { "Mono white", pal_mono_white, (int)G_N_ELEMENTS(pal_mono_white) },
+  { "Mono green", pal_mono_green, (int)G_N_ELEMENTS(pal_mono_green) },
+  { "Mono amber", pal_mono_amber, (int)G_N_ELEMENTS(pal_mono_amber) },
+  { "Inferno",    pal_inferno,    (int)G_N_ELEMENTS(pal_inferno)    },
+  { "Turbo",      pal_turbo,      (int)G_N_ELEMENTS(pal_turbo)      },
+};
+
+int ftx_waterfall_palette_count(void) { return (int)G_N_ELEMENTS(palettes); }
+const char *ftx_waterfall_palette_name(int idx)
+{
+  return (idx < 0 || idx >= (int)G_N_ELEMENTS(palettes)) ? "" : palettes[idx].name;
+}
+
 static void palette_rgb(int pal, double v, guint8 *r, guint8 *g, guint8 *b)
 {
-  double rr, gg, bb;
+  if (pal < 0 || pal >= (int)G_N_ELEMENTS(palettes)) pal = 0;
+  const PalStop *stop = palettes[pal].stop;
+  const int n = palettes[pal].n;
   v = v < 0 ? 0 : v > 1 ? 1 : v;
-  if (pal == 1) {                                   /* grey */
-    rr = gg = bb = 0.03 + 0.97 * v;
-  } else if (pal == 2) {                            /* fire */
-    if (v < 0.4) { double k = v / 0.4; rr = 0.05 + 0.85 * k; gg = 0.02 + 0.1 * k; bb = 0.02; }
-    else if (v < 0.75) { double k = (v - 0.4) / 0.35; rr = 0.9 + 0.1 * k; gg = 0.12 + 0.75 * k; bb = 0.02 + 0.1 * k; }
-    else { double k = (v - 0.75) / 0.25; rr = 1.0; gg = 0.87 + 0.13 * k; bb = 0.12 + 0.88 * k; }
-  } else {                                          /* dark blue → cyan → yellow → white */
-    if (v < 0.35) { double k = v / 0.35; rr = 0.02; gg = 0.05 + 0.25 * k; bb = 0.12 + 0.55 * k; }
-    else if (v < 0.7) { double k = (v - 0.35) / 0.35; rr = 0.02 + 0.9 * k; gg = 0.3 + 0.6 * k; bb = 0.67 - 0.5 * k; }
-    else { double k = (v - 0.7) / 0.3; rr = 0.92 + 0.08 * k; gg = 0.9 + 0.1 * k; bb = 0.17 + 0.8 * k; }
-  }
-  *r = (guint8)(rr * 255.0 + 0.5);
-  *g = (guint8)(gg * 255.0 + 0.5);
-  *b = (guint8)(bb * 255.0 + 0.5);
+  int s = 0;
+  while (s < n - 2 && v > stop[s + 1].t) s++;
+  double t0 = stop[s].t, t1 = stop[s + 1].t;
+  double f = t1 > t0 ? (v - t0) / (t1 - t0) : 0.0;
+  f = f < 0 ? 0 : f > 1 ? 1 : f;
+  *r = (guint8)(stop[s].r + f * (stop[s + 1].r - stop[s].r) + 0.5);
+  *g = (guint8)(stop[s].g + f * (stop[s + 1].g - stop[s].g) + 0.5);
+  *b = (guint8)(stop[s].b + f * (stop[s + 1].b - stop[s].b) + 0.5);
 }
 
 static double x_of(FtxWaterfall *w, double hz, int W)
@@ -172,7 +221,9 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
   FtxWaterfall *w = FTX_WATERFALL(widget);
   const int W = gtk_widget_get_width(widget), H = gtk_widget_get_height(widget);
   if (W <= 0 || H <= 0) return;
-  const GdkRGBA bg = { 0.04f, 0.045f, 0.06f, 1.0f };
+  guint8 fr, fg, fb;
+  palette_rgb(w->palette, 0.0, &fr, &fg, &fb);
+  const GdkRGBA bg = { fr / 255.0f, fg / 255.0f, fb / 255.0f, 1.0f };
   gtk_snapshot_append_color(snap, &bg, &GRAPHENE_RECT_INIT(0, 0, W, H));
 
   const int spec_h = w->show_spectrum ? SPEC_H : 0, gap = w->show_spectrum ? GAP : 0;

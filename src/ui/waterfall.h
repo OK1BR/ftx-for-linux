@@ -33,7 +33,10 @@ void   ftx_waterfall_set_tx_hz(FtxWaterfall *w, double hz);
 void   ftx_waterfall_set_period(FtxWaterfall *w, double seconds);      /* 15 or 7.5     */
 void   ftx_waterfall_set_bandwidth(FtxWaterfall *w, double hz);        /* 50 FT8, 83.3 FT4 */
 void   ftx_waterfall_set_span(FtxWaterfall *w, double fmin, double fmax);
-void   ftx_waterfall_set_palette(FtxWaterfall *w, int palette);        /* 0 blue→yellow, 1 grey, 2 fire */
+void   ftx_waterfall_set_palette(FtxWaterfall *w, int palette);        /* index into the family palette table */
+/* The palettes of sdr-for-linux / skimmer-for-linux: Classic (0), Mono white, Mono green, Mono amber, Inferno, Turbo. */
+int         ftx_waterfall_palette_count(void);
+const char *ftx_waterfall_palette_name(int idx);
 void   ftx_waterfall_set_show_labels(FtxWaterfall *w, gboolean show);
 void   ftx_waterfall_set_show_spectrum(FtxWaterfall *w, gboolean show);
 
