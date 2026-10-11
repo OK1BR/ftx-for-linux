@@ -282,7 +282,7 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_widget_add_css_class(p->enable, "txkey");
   g_object_set_data(G_OBJECT(p->enable), "action", GINT_TO_POINTER(FTX_QSO_ACTION_ENABLE_TX));
   g_signal_connect(p->enable, "toggled", G_CALLBACK(action), p);
-  p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, "destructive-action");
+  p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, NULL);   /* a plain button: the libadwaita destructive-action red was too loud (Richard 2026-10-11) */
   gtk_widget_set_tooltip_text(p->halt, "Stop transmitting and disable TX (Esc)");
   p->tune = gtk_toggle_button_new_with_label("Tune");
   gtk_widget_set_tooltip_text(p->tune, "A steady tone at the Tx frequency while on");

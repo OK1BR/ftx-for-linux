@@ -331,4 +331,9 @@ COL_RX_FILL/EDGE, COL_TX_FILL/EDGE, fill 0.22·op, 1 px edges 0.95·op) with
 the same "Filter opacity" slider (`[display] filter_op`, default 60) in
 Preferences › Display ("odstíny filtru udělej stejně jako má SDR, včetně
 případného nastavení").
+Then: the period line uses the same shades as the passbands (sdr-for-linux's
+COL_RX_FILL / COL_TX_FILL at 0.65 / 0.55 alpha; "moc svítí"), and Halt TX is
+a plain button — the salmon came from libadwaita's `destructive-action`
+class, which Richard's ok1br.css deliberately leaves alone (`:not(.destructive-action)`),
+not from our stylesheet.
 

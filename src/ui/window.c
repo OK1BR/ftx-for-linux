@@ -241,16 +241,18 @@ static void update_card(FtxWindow *win)
 
 /* Fills over the period; red while we are on the air or in our slot with TX
  * enabled, green while receiving.  Drawn by the program, so it survives any
- * GTK theme. */
+ * GTK theme.  The shades are the passband fills of sdr-for-linux (the
+ * waterfall's COL_RX_FILL / COL_TX_FILL), toned down — Richard 2026-10-11:
+ * "stejný odstín zelené a rudé ... moc svítí". */
 static void draw_period_line(GtkDrawingArea *a, cairo_t *cr, int w, int h, gpointer user)
 {
   (void)a;
   FtxWindow *win = user;
-  cairo_set_source_rgba(cr, 1, 1, 1, 0.10);
+  cairo_set_source_rgba(cr, 1, 1, 1, 0.08);
   cairo_rectangle(cr, 0, 0, w, h);
   cairo_fill(cr);
-  if (win->line_tx) cairo_set_source_rgb(cr, 0.78, 0.2, 0.12);
-  else cairo_set_source_rgba(cr, 0.43, 0.88, 0.54, 0.8);
+  if (win->line_tx) cairo_set_source_rgba(cr, 1.00, 0.28, 0.22, 0.55);
+  else cairo_set_source_rgba(cr, 0.16, 0.66, 0.36, 0.65);
   cairo_rectangle(cr, 0, 0, w * win->line_frac, h);
   cairo_fill(cr);
 }
