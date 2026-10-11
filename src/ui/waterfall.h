@@ -1,4 +1,4 @@
-/* waterfall.h — the labelled waterfall: spectrum strip, scrolling rows with
+/* waterfall.h — the labelled waterfall: scrolling rows with
  * per-row UTC time (period boundaries carry their HHMMSS tag), the callsign
  * of every decode drawn on its trace, the Rx (green) and Tx (red) brackets.
  * Left click = Rx frequency, right click (or shift) = Tx frequency, as in
@@ -38,7 +38,6 @@ void   ftx_waterfall_set_palette(FtxWaterfall *w, int palette);        /* index 
 int         ftx_waterfall_palette_count(void);
 const char *ftx_waterfall_palette_name(int idx);
 void   ftx_waterfall_set_show_labels(FtxWaterfall *w, gboolean show);
-void   ftx_waterfall_set_show_spectrum(FtxWaterfall *w, gboolean show);
 
 /* Signals: "rx-clicked" (gdouble hz), "tx-clicked" (gdouble hz). */
 

@@ -187,7 +187,6 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   combo(c, g, "Palette", "the same schemes as sdr-for-linux and skimmer-for-linux", pal, &s->palette);
   spin(c, g, "Rows per second", NULL, 1, 4, 1, 0, &s->rows_per_s, NULL);
   sw(c, g, "Label decoded signals on the waterfall", NULL, &s->wf_labels);
-  sw(c, g, "Spectrum strip above the waterfall", NULL, &s->spectrum_strip);
   g = group(p, "Decode lists", NULL);
   sw(c, g, "Highlight CQ", NULL, &s->hl_cq);
   spin(c, g, "Keep periods", "how many periods stay in Band activity", 1, 60, 1, 0, &s->keep_periods, NULL);

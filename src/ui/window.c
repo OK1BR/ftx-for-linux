@@ -685,7 +685,6 @@ static void apply_settings(FtxWindow *win)
 {
   ftx_waterfall_set_palette(win->wf, win->s->palette);
   ftx_waterfall_set_show_labels(win->wf, win->s->wf_labels);
-  ftx_waterfall_set_show_spectrum(win->wf, win->s->spectrum_strip);
   ftx_waterfall_set_span(win->wf, 0, MAX(win->s->nfb, 1000));
   ftx_rx_engine_set_rows_per_second(win->eng, win->s->rows_per_s);
   ftx_status_bar_set_clock_health(win->sb, win->s->show_dt_health, FALSE, 0, win->s->clock_warn_dt);

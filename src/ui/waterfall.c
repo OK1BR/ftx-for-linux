@@ -1,4 +1,5 @@
-/* waterfall.c — see waterfall.h.  Copyright (C) 2026 Richard Fakenberg, OK1BR.
+/* waterfall.c — see waterfall.h.  No spectrum strip: Richard 2026-10-11,
+ * "spektrum dej pryč úplně, nech tam jen vodopád".  Copyright (C) 2026 Richard Fakenberg, OK1BR.
  * GPL-3.0-or-later. */
 #include "waterfall.h"
 
@@ -8,8 +9,6 @@
 
 #define MAX_ROWS 1000
 #define AXIS_H   22
-#define SPEC_H   72
-#define GAP      6
 #define FONT     "Adwaita Mono"
 
 struct label {
@@ -34,7 +33,7 @@ struct _FtxWaterfall {
   GArray *labels;
   double  rx_hz, tx_hz, fmin, fmax, period_s, bw_hz, range_db;
   int     palette;
-  gboolean show_labels, show_spectrum;
+  gboolean show_labels;
   guint8 *pix;
   gsize   pix_cap;
 };
@@ -192,7 +191,6 @@ SETTER(period, period_s, double)
 SETTER(bandwidth, bw_hz, double)
 SETTER(palette, palette, int)
 SETTER(show_labels, show_labels, gboolean)
-SETTER(show_spectrum, show_spectrum, gboolean)
 #undef SETTER
 double ftx_waterfall_get_rx_hz(FtxWaterfall *w) { return w->rx_hz; }
 void ftx_waterfall_set_span(FtxWaterfall *w, double fmin, double fmax)
@@ -226,8 +224,7 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
   const GdkRGBA bg = { fr / 255.0f, fg / 255.0f, fb / 255.0f, 1.0f };
   gtk_snapshot_append_color(snap, &bg, &GRAPHENE_RECT_INIT(0, 0, W, H));
 
-  const int spec_h = w->show_spectrum ? SPEC_H : 0, gap = w->show_spectrum ? GAP : 0;
-  const int y0 = AXIS_H + 2, wy0 = y0 + spec_h + gap, wh = H - wy0;
+  const int wy0 = AXIS_H + 2, wh = H - wy0;
   if (wh <= 0) return;
 
   int b0 = 0, nb = 0;
@@ -282,30 +279,6 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
       cairo_text_extents(cr, t, &te);
       cairo_move_to(cr, x - te.width / 2, 11);
       cairo_show_text(cr, t);
-    }
-  }
-
-  /* spectrum strip: average of the last 4 rows */
-  if (w->show_spectrum) {
-    cairo_set_source_rgba(cr, 1, 1, 1, 0.06);
-    for (int k = 1; k < 4; k++) { cairo_rectangle(cr, 0, y0 + spec_h * k / 4.0, W, 1); cairo_fill(cr); }
-    if (nb > 0 && w->count > 0) {
-      int navg = MIN(4, w->count);
-      cairo_set_source_rgba(cr, 0.55, 0.85, 1.0, 0.9);
-      cairo_set_line_width(cr, 1.2);
-      for (int k = 0; k < nb; k++) {
-        double v = 0;
-        for (int r = 0; r < navg; r++) {
-          int idx = row_index(w, r);
-          v += w->rows[(gsize)idx * w->nbins + b0 + k] - w->row_base[idx];
-        }
-        v /= navg;
-        double y = y0 + spec_h - (v / w->range_db) * spec_h;
-        y = CLAMP(y, y0, y0 + spec_h);
-        double x = x_of(w, (b0 + k) * w->bin_hz, W);
-        if (k == 0) cairo_move_to(cr, x, y); else cairo_line_to(cr, x, y);
-      }
-      cairo_stroke(cr);
     }
   }
 
@@ -380,16 +353,19 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
   cairo_move_to(cr, xt + xw, AXIS_H + 1); cairo_line_to(cr, xt + xw, H); cairo_stroke(cr);
   cairo_set_source_rgba(cr, 1.0, 0.3, 0.25, 0.10);
   cairo_rectangle(cr, xt, AXIS_H + 1, xw, H); cairo_fill(cr);
+  /* the Rx/Tx readout sits at the bottom edge, beside the brackets, away
+   * from the newest rows and their labels */
   cairo_set_font_size(cr, 11);
   char t[24];
   double bx = MAX(xr, xt) + xw + 3;
   if (bx + 56 > W) bx = MIN(xr, xt) - 56;
+  double by = H - 31;
   cairo_set_source_rgba(cr, 0, 0, 0, 0.6);
-  cairo_rectangle(cr, bx, AXIS_H + 3, 52, 28); cairo_fill(cr);
+  cairo_rectangle(cr, bx, by, 52, 28); cairo_fill(cr);
   snprintf(t, sizeof t, "Rx %4.0f", w->rx_hz);
-  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 1); cairo_move_to(cr, bx + 3, AXIS_H + 14); cairo_show_text(cr, t);
+  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 1); cairo_move_to(cr, bx + 3, by + 11); cairo_show_text(cr, t);
   snprintf(t, sizeof t, "Tx %4.0f", w->tx_hz);
-  cairo_set_source_rgba(cr, 1.0, 0.35, 0.3, 1); cairo_move_to(cr, bx + 3, AXIS_H + 27); cairo_show_text(cr, t);
+  cairo_set_source_rgba(cr, 1.0, 0.35, 0.3, 1); cairo_move_to(cr, bx + 3, by + 24); cairo_show_text(cr, t);
   cairo_destroy(cr);
 }
 
@@ -440,7 +416,7 @@ static void ftx_waterfall_init(FtxWaterfall *w)
   w->row_base = g_new0(float, MAX_ROWS);
   w->labels = g_array_new(FALSE, FALSE, sizeof(struct label));
   w->rx_hz = 1500; w->tx_hz = 1500; w->fmin = 0; w->fmax = 4000; w->period_s = 15; w->bw_hz = 50; w->range_db = 40;
-  w->show_labels = TRUE; w->show_spectrum = TRUE;
+  w->show_labels = TRUE;
   GtkGesture *click = gtk_gesture_click_new();
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
   g_signal_connect(click, "pressed", G_CALLBACK(on_pressed), w);

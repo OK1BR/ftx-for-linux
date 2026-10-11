@@ -32,7 +32,6 @@ typedef struct {
   int      palette;         /* family palette index (0 = Classic)           */
   int      rows_per_s;      /* waterfall rows per second                    */
   gboolean wf_labels;       /* callsigns on the waterfall                   */
-  gboolean spectrum_strip;
   gboolean hl_cq;
   gboolean dim_b4;
   int      keep_periods;    /* Band activity history                        */

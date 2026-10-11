@@ -33,8 +33,9 @@ over TCI and sit where the eye lands first; click = retune. Monitor and the
 FT8/FT4 mode toggles are the only other header controls. Band selection lives
 in the radio (sdr-for-linux), FTX follows it — no band table of its own.
 
-**Waterfall with meaning on it.** 0–4000 Hz, a spectrum strip above, 2 rows
-per second. The things WSJT-X makes you cross-reference by hand are drawn in:
+**Waterfall with meaning on it.** 0–4000 Hz, 2 rows per second (the spectrum
+strip of the mockup went away after the first live run — Richard
+2026-10-11: "spektrum dej pryč úplně, nech tam jen vodopád"). The things WSJT-X makes you cross-reference by hand are drawn in:
 the callsign of every decoded signal sits on its trace; period boundaries carry
 the UTC tag (the tag is inside the period it starts); the Rx bracket (green,
 50 Hz = the FT8 occupied bandwidth) and the Tx bracket (red) show where we
