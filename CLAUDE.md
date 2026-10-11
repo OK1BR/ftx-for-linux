@@ -291,3 +291,27 @@ Headless testing note: the app is a unique GApplication — run test
 instances under `dbus-run-session`, or they just activate the live one.
 The live instance is relaunched from `/tmp/ftx-live` (log `app.log`) via
 `gapplication action cz.ok1br.ftx_for_linux quit` + start.
+
+2026-10-11 (late afternoon): **second layout pass, built** (Richard: "zatím se
+mi to zdá takové moc nedodělané … připrav mi nejdřív návrhy", then on the
+rendered proposal "ok, zkus to, mockupy vypadají dobře").  His window is tiled
+by Hyprland next to sdr-for-linux at 1519×1364 (5120×1440 screen), palette
+Mono white, his own gtk.css — proposals and checks are rendered in that
+geometry and theme (mock TCI server + Broadway + headless Chrome,
+`dev/tools/cdp_shot.js`; the mock serves one client at a time).  Mockup
+`docs/mockups/ftx_main_window_v2.c` + PNGs, README there lists the seven
+changes.  Implemented: `qso_panel.c` is the console (QSO group: call in large
+type, grid · km · °, report to send / received, Log QSO; Transmit group: badge
+RX/ARMED/ON AIR/TUNE drawn by the program with the group border following,
+the message, `TxN · Hz` popover now also holding Tx frequency + Hold + Tx = Rx
+and the DX call/grid by hand, state line, four equal buttons); the period
+line (8 px, full width, under the waterfall, green receiving / red our slot
+or on the air) in `window.c` replaces the status-bar progress bar
+(`ftx_status_bar_set_clock` takes the time only); waterfall flags in the axis
+instead of the readout box, labels in three lanes by overlap; the lists in a
+horizontal GtkPaned (`[window] lists`, default 820, Band activity keeps its
+width), tags right after the text, pane header notes (`ftx_decode_list_set_note`:
+"21 decodes · 152815" / "Rx 1648 Hz"); band beside the dial.  Verified
+headless against the mock in his geometry and theme: idle, double-click →
+HA0DU KN07 · 7210 km · 48°, Enable TX → ARMED then ON AIR with the red line
+and the Tx row, Halt, the popover.  79 gates green.

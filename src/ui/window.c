@@ -31,7 +31,7 @@ struct _FtxWindow {
   FtxTxEngine    *tx;
   ftx_pack77_ctx *pc;
 
-  GtkWidget *toasts, *dial, *modelab, *title, *ft8_btn, *ft4_btn, *monitor_btn, *paned;
+  GtkWidget *toasts, *dial, *modelab, *title, *ft8_btn, *ft4_btn, *monitor_btn, *paned, *lists, *line;
   FtxWaterfall  *wf;
   FtxDecodeList *band, *rxl;
   FtxQsoPanel   *qso;
@@ -65,6 +65,10 @@ struct _FtxWindow {
   /* last period statistics */
   int      last_nutc;
   FILE    *all_txt;
+
+  /* the period line under the waterfall */
+  double   line_frac;
+  gboolean line_tx;
 };
 
 G_DEFINE_FINAL_TYPE(FtxWindow, ftx_window, ADW_TYPE_APPLICATION_WINDOW)
@@ -98,9 +102,7 @@ static const char *band_name(double hz)
 static void update_title(FtxWindow *win)
 {
   char sub[96];
-  const char *band = band_name(win->dial_hz);
-  if (win->s->call[0]) snprintf(sub, sizeof sub, "%s · %s%s%s", win->s->call, win->s->grid[0] ? win->s->grid : "no grid",
-                                band ? " · " : "", band ? band : "");
+  if (win->s->call[0]) snprintf(sub, sizeof sub, "%s · %s", win->s->call, win->s->grid[0] ? win->s->grid : "no grid");
   else snprintf(sub, sizeof sub, "no station set — Preferences › Station");
   adw_window_title_set_subtitle(ADW_WINDOW_TITLE(win->title), sub);
 }
@@ -116,8 +118,10 @@ static void update_dial(FtxWindow *win)
   }
   gtk_label_set_text(GTK_LABEL(win->dial), t);
   const char *mode = win->connected ? ftx_rx_engine_mode(win->eng) : "";
+  const char *band = band_name(win->dial_hz);
   char *up = g_ascii_strup(mode, -1);
-  gtk_label_set_text(GTK_LABEL(win->modelab), up);
+  snprintf(t, sizeof t, "%s%s%s", band ? band : "", band && up[0] ? " · " : "", up);
+  gtk_label_set_text(GTK_LABEL(win->modelab), t);
   g_free(up);
   update_title(win);
 }
@@ -149,6 +153,9 @@ static void set_rx_hz(FtxWindow *win, int hz)
   hz = CLAMP(hz, 100, 5000);
   win->s->rx_hz = hz;
   ftx_waterfall_set_rx_hz(win->wf, hz);
+  char note[24];
+  snprintf(note, sizeof note, "Rx %d Hz", hz);
+  ftx_decode_list_set_note(win->rxl, note);
   if (ftx_qso_panel_get_tx_eq_rx(win->qso)) {
     win->s->tx_hz = hz;
     ftx_waterfall_set_tx_hz(win->wf, hz);
@@ -199,7 +206,8 @@ static void update_card(FtxWindow *win)
   int start = (int)(floor(secs / p) * p);
   char state[112], detail[48];
   const char *msg = win->msgs.tx[win->ntx - 1];
-  gboolean on_air = win->transmitting || win->tuning;
+  FtxTxBadge badge = FTX_TX_BADGE_RX;
+  const gboolean autoseq = ftx_qso_panel_get_auto_seq(win->qso);
   if (!win->s->call[0]) {
     snprintf(state, sizeof state, "Set your callsign and grid in Preferences › Station");
     msg = "";
@@ -208,21 +216,43 @@ static void update_card(FtxWindow *win)
     snprintf(state, sizeof state, "Tune · steady tone on the air");
     msg = "TUNE";
     snprintf(detail, sizeof detail, "%d Hz", win->s->tx_hz);
+    badge = FTX_TX_BADGE_TUNE;
   } else if (win->transmitting) {
-    snprintf(state, sizeof state, "On the air · %s period %02d%02d%02d · %.0f s left", odd ? "odd" : "even",
-             start / 3600, (start / 60) % 60, start % 60, p - into);
+    snprintf(state, sizeof state, "Transmitting · %s period %02d%02d%02d · %.0f s left%s", odd ? "odd" : "even",
+             start / 3600, (start / 60) % 60, start % 60, p - into, autoseq ? " · auto sequence" : "");
     msg = win->tx_msg_now;
     snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->tx_ntx_now, win->s->tx_hz);
+    badge = FTX_TX_BADGE_ON_AIR;
   } else if (win->tx_enabled) {
     double wait = ours_now ? (p - into) + p : (p - into);
-    snprintf(state, sizeof state, "TX enabled · goes out in the %s period · %.0f s", win->tx_first ? "even" : "odd", wait);
+    snprintf(state, sizeof state, "TX enabled · goes out in the %s period · %.0f s%s", win->tx_first ? "even" : "odd", wait,
+             autoseq ? " · auto sequence" : "");
     snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->ntx, win->s->tx_hz);
+    badge = FTX_TX_BADGE_ARMED;
   } else {
-    snprintf(state, sizeof state, "%s · %s period %02d%02d%02d · %.0f s left%s", win->connected ? "Receiving" : "Not connected",
-             odd ? "odd" : "even", start / 3600, (start / 60) % 60, start % 60, p - into, ours_now ? " · our slot" : "");
+    snprintf(state, sizeof state, "%s · %s period %02d%02d%02d · %.0f s left · our slot%s", win->connected ? "Receiving" : "Not connected",
+             odd ? "odd" : "even", start / 3600, (start / 60) % 60, start % 60, p - into, ours_now ? "" : " next");
     snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->ntx, win->s->tx_hz);
   }
-  ftx_qso_panel_set_card(win->qso, state, msg[0] ? msg : "(no message)", detail, on_air);
+  ftx_qso_panel_set_card(win->qso, state, msg[0] ? msg : "(no message)", detail, badge);
+}
+
+/* ---- the period line under the waterfall --------------------------------- */
+
+/* Fills over the period; red while we are on the air or in our slot with TX
+ * enabled, green while receiving.  Drawn by the program, so it survives any
+ * GTK theme. */
+static void draw_period_line(GtkDrawingArea *a, cairo_t *cr, int w, int h, gpointer user)
+{
+  (void)a;
+  FtxWindow *win = user;
+  cairo_set_source_rgba(cr, 1, 1, 1, 0.10);
+  cairo_rectangle(cr, 0, 0, w, h);
+  cairo_fill(cr);
+  if (win->line_tx) cairo_set_source_rgb(cr, 0.78, 0.2, 0.12);
+  else cairo_set_source_rgba(cr, 0.43, 0.88, 0.54, 0.8);
+  cairo_rectangle(cr, 0, 0, w * win->line_frac, h);
+  cairo_fill(cr);
 }
 
 /* ---- transmitting ---------------------------------------------------------- */
@@ -388,7 +418,11 @@ static gboolean tick(gpointer data)
   double secs = s + (now % 1000000) / 1e6;
   double into = fmod(secs, p);
   gboolean odd = ((gint64)floor(secs / p)) % 2 == 1;
-  ftx_status_bar_set_clock(win->sb, (int)(s / 3600), (int)((s / 60) % 60), (int)(s % 60), p, into, odd);
+  ftx_status_bar_set_clock(win->sb, (int)(s / 3600), (int)((s / 60) % 60), (int)(s % 60));
+  const gboolean ours_now = (odd != win->tx_first);
+  win->line_frac = into / p;
+  win->line_tx = win->transmitting || win->tuning || (win->tx_enabled && ours_now);
+  gtk_widget_queue_draw(win->line);
   maybe_transmit(win);
   static int last_sec = -1;
   if ((int)s != last_sec) { last_sec = (int)s; update_card(win); }
@@ -680,6 +714,12 @@ static void on_period(const FtxRxPeriod *p, gpointer user)
     break;
   }
   ftx_status_bar_set_decodes(win->sb, buf);
+  {
+    char note[40];
+    if (p->status == FTX_RX_PERIOD_DECODED) snprintf(note, sizeof note, "%d decode%s · %06d", p->ndecodes, p->ndecodes == 1 ? "" : "s", p->nutc);
+    else snprintf(note, sizeof note, "%06d skipped", p->nutc);
+    ftx_decode_list_set_note(win->band, note);
+  }
   if (win->all_txt) fflush(win->all_txt);
   ftx_decode_list_prune(win->band, win->s->keep_periods);
   ftx_decode_list_prune(win->rxl, win->s->keep_periods);
@@ -1005,6 +1045,7 @@ static gboolean on_close_request(GtkWindow *w, gpointer user)
   win->s->win_max = gtk_window_is_maximized(w);
   if (!win->s->win_max) gtk_window_get_default_size(w, &win->s->win_w, &win->s->win_h);
   win->s->paned_pos = gtk_paned_get_position(GTK_PANED(win->paned));
+  win->s->lists_pos = gtk_paned_get_position(GTK_PANED(win->lists));
   ftx_settings_save(win->s);
   return FALSE;
 }
@@ -1110,25 +1151,32 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   win->wf = FTX_WATERFALL(ftx_waterfall_new());
   g_signal_connect(win->wf, "rx-clicked", G_CALLBACK(on_rx_clicked), win);
   g_signal_connect(win->wf, "tx-clicked", G_CALLBACK(on_tx_clicked), win);
-  /* one column: the controls under the waterfall, the two lists beneath */
+  /* one column (Richard 2026-10-11): the period line and the console under
+   * the waterfall, the two lists beneath with a draggable divider */
   GtkWidget *lower = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  GtkWidget *lists = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  win->line = gtk_drawing_area_new();
+  gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(win->line), 8);
+  gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(win->line), draw_period_line, win, NULL);
+  gtk_widget_set_tooltip_text(win->line, "The period: green while receiving, red in our transmit slot");
   win->band = FTX_DECODE_LIST(ftx_decode_list_new("Band activity"));
   win->rxl = FTX_DECODE_LIST(ftx_decode_list_new("Rx frequency"));
-  gtk_widget_set_hexpand(GTK_WIDGET(win->band), TRUE);
-  gtk_widget_set_hexpand(GTK_WIDGET(win->rxl), TRUE);
   g_signal_connect(win->band, "decode-activated", G_CALLBACK(on_decode_activated), win);
   g_signal_connect(win->rxl, "decode-activated", G_CALLBACK(on_decode_activated), win);
   win->qso = FTX_QSO_PANEL(ftx_qso_panel_new());
   g_signal_connect(win->qso, "changed", G_CALLBACK(on_qso_changed), win);
   g_signal_connect(win->qso, "action", G_CALLBACK(on_qso_action), win);
-  gtk_box_append(GTK_BOX(lists), GTK_WIDGET(win->band));
-  gtk_box_append(GTK_BOX(lists), gtk_separator_new(GTK_ORIENTATION_VERTICAL));
-  gtk_box_append(GTK_BOX(lists), GTK_WIDGET(win->rxl));
-  gtk_widget_set_vexpand(lists, TRUE);
+  win->lists = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+  gtk_paned_set_start_child(GTK_PANED(win->lists), GTK_WIDGET(win->band));
+  gtk_paned_set_end_child(GTK_PANED(win->lists), GTK_WIDGET(win->rxl));
+  gtk_paned_set_shrink_start_child(GTK_PANED(win->lists), FALSE);
+  gtk_paned_set_shrink_end_child(GTK_PANED(win->lists), FALSE);
+  gtk_paned_set_resize_start_child(GTK_PANED(win->lists), FALSE);   /* Band activity keeps its width, Rx frequency takes the rest */
+  gtk_paned_set_position(GTK_PANED(win->lists), s->lists_pos > 0 ? s->lists_pos : 820);
+  gtk_widget_set_vexpand(win->lists, TRUE);
+  gtk_box_append(GTK_BOX(lower), win->line);
   gtk_box_append(GTK_BOX(lower), GTK_WIDGET(win->qso));
   gtk_box_append(GTK_BOX(lower), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
-  gtk_box_append(GTK_BOX(lower), lists);
+  gtk_box_append(GTK_BOX(lower), win->lists);
   win->paned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
   gtk_paned_set_start_child(GTK_PANED(win->paned), GTK_WIDGET(win->wf));
   gtk_paned_set_end_child(GTK_PANED(win->paned), lower);
@@ -1156,6 +1204,11 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   ftx_qso_panel_set_next(win->qso, 5);
   ftx_waterfall_set_rx_hz(win->wf, s->rx_hz);
   ftx_waterfall_set_tx_hz(win->wf, s->tx_hz);
+  {
+    char note[24];
+    snprintf(note, sizeof note, "Rx %d Hz", s->rx_hz);
+    ftx_decode_list_set_note(win->rxl, note);
+  }
   set_dx(win, "", "");
   apply_mode(win);
   apply_settings(win);

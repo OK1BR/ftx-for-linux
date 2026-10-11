@@ -33,6 +33,7 @@ static const struct key {
   K("state", "auto_seq", T_BOOL, auto_seq), K("state", "report", T_INT, report),
   K("window", "width", T_INT, win_w), K("window", "height", T_INT, win_h),
   K("window", "maximized", T_BOOL, win_max), K("window", "paned", T_INT, paned_pos),
+  K("window", "lists", T_INT, lists_pos),
 #undef K
 };
 
@@ -46,7 +47,7 @@ void ftx_settings_defaults(FtxSettings *s)
   s->palette = 0; s->rows_per_s = 8; s->wf_labels = TRUE;
   s->hl_cq = TRUE; s->dim_b4 = TRUE; s->keep_periods = 20;
   s->rx_hz = 1500; s->tx_hz = 1500; s->hold_tx = TRUE; s->tx_eq_rx = FALSE; s->auto_seq = TRUE; s->report = -10;
-  s->win_w = 1180; s->win_h = 960; s->paned_pos = 320;
+  s->win_w = 1180; s->win_h = 960; s->paned_pos = 320; s->lists_pos = 820;
 }
 
 static char cfg_path[1024], data_dir[1024];

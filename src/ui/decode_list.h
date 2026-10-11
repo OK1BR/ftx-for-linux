@@ -36,6 +36,8 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *row);
 /* Drop the oldest periods beyond keep. */
 void ftx_decode_list_prune(FtxDecodeList *l, int keep_periods);
 void ftx_decode_list_clear(FtxDecodeList *l);
+/* The dim note at the right of the pane header (decode count, Rx frequency). */
+void ftx_decode_list_set_note(FtxDecodeList *l, const char *text);
 
 /* Signal: "decode-activated" (gpointer FtxDecodeRow *) */
 

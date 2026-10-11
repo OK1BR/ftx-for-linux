@@ -1,9 +1,12 @@
-/* qso_panel.h — the QSO panel: the partner (call, grid, report to send,
- * report received, what we know about him), the transmission card (what is
- * on the air or goes out next, in which period, how long), the TX controls,
- * the six standard messages with the auto-sequencer switch, Tx frequency and
- * Log QSO.  The card and the "on air" tag are the TX indication that no
- * theme can recolour.
+/* qso_panel.h — the console under the waterfall: two bounded groups.
+ * QSO: the partner (call in large type, grid · distance · bearing), the
+ * report to send, the report received, Log QSO.  Transmit: a state badge
+ * drawn by the program (RX / ARMED / ON AIR / TUNE — no theme recolours it),
+ * the message on the air or next, the "TxN · Hz" button whose popover holds
+ * what is rarely touched (the six standard messages with the auto-sequencer
+ * switch, the Tx frequency with Hold and Tx = Rx, the DX call and grid by
+ * hand), the period line and the four buttons Call CQ, Enable TX, Halt TX,
+ * Tune.
  *
  * Part of FTX for Linux.  Copyright (C) 2026 Richard Fakenberg, OK1BR.
  * GPL-3.0-or-later.  No warranty.
@@ -26,6 +29,9 @@ typedef enum {
   FTX_QSO_ACTION_LOG_QSO,
 } FtxQsoAction;
 
+/* The badge in the Transmit group. */
+typedef enum { FTX_TX_BADGE_RX, FTX_TX_BADGE_ARMED, FTX_TX_BADGE_ON_AIR, FTX_TX_BADGE_TUNE } FtxTxBadge;
+
 GtkWidget *ftx_qso_panel_new(void);
 
 /* Setters do not emit "changed". */
@@ -35,9 +41,11 @@ const char *ftx_qso_panel_get_dx_grid(FtxQsoPanel *p);
 void        ftx_qso_panel_set_report(FtxQsoPanel *p, int report);
 int         ftx_qso_panel_get_report(FtxQsoPanel *p);
 void        ftx_qso_panel_set_received(FtxQsoPanel *p, const char *text);
+/* What we know about the partner (grid · km · °), shown beside the call. */
 void        ftx_qso_panel_set_info(FtxQsoPanel *p, const char *text);
-/* The card: a state line, the message in large type, a detail line, red when on the air. */
-void        ftx_qso_panel_set_card(FtxQsoPanel *p, const char *state, const char *message, const char *detail, gboolean on_air);
+/* The Transmit group: a state line, the message in large type, the label of
+ * the "TxN · Hz" button, and the badge. */
+void        ftx_qso_panel_set_card(FtxQsoPanel *p, const char *state, const char *message, const char *detail, FtxTxBadge badge);
 void        ftx_qso_panel_set_message(FtxQsoPanel *p, int i, const char *text, gboolean valid);
 void        ftx_qso_panel_set_next(FtxQsoPanel *p, int i);           /* 0..5 */
 int         ftx_qso_panel_get_next(FtxQsoPanel *p);

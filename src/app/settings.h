@@ -47,7 +47,8 @@ typedef struct {
   /* [window] */
   int      win_w, win_h;
   gboolean win_max;
-  int      paned_pos;
+  int      paned_pos;       /* waterfall / lower part                       */
+  int      lists_pos;       /* Band activity / Rx frequency divider         */
 } FtxSettings;
 
 void        ftx_settings_defaults(FtxSettings *s);

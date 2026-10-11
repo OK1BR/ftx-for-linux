@@ -7,7 +7,7 @@
 
 struct _FtxStatusBar {
   GtkWidget parent_instance;
-  GtkWidget *box, *clock, *bar, *health, *audio, *decodes, *tci, *logger;
+  GtkWidget *box, *clock, *health, *audio, *decodes, *tci, *logger;
 };
 
 G_DEFINE_FINAL_TYPE(FtxStatusBar, ftx_status_bar, GTK_TYPE_WIDGET)
@@ -31,14 +31,11 @@ static GtkWidget *item(GtkWidget *box, const char *text)
   return l;
 }
 
-void ftx_status_bar_set_clock(FtxStatusBar *sb, int hh, int mm, int ss, double period_s, double into_s, gboolean odd)
+void ftx_status_bar_set_clock(FtxStatusBar *sb, int hh, int mm, int ss)
 {
   char buf[32];
   snprintf(buf, sizeof buf, "%02d:%02d:%02d UTC", hh, mm, ss);
   gtk_label_set_text(GTK_LABEL(sb->clock), buf);
-  gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(sb->bar), into_s / period_s);
-  snprintf(buf, sizeof buf, "%s period · %2.0f s", odd ? "odd" : "even", floor(into_s));
-  gtk_progress_bar_set_text(GTK_PROGRESS_BAR(sb->bar), buf);
 }
 
 void ftx_status_bar_set_clock_health(FtxStatusBar *sb, gboolean show, gboolean have, double mean_dt, double limit)
@@ -80,12 +77,7 @@ static void ftx_status_bar_init(FtxStatusBar *sb)
   gtk_widget_add_css_class(sb->box, "statusbar");
   gtk_widget_set_parent(sb->box, GTK_WIDGET(sb));
   sb->clock = item(sb->box, "--:--:-- UTC");
-  gtk_widget_add_css_class(sb->clock, "mono");
-  sb->bar = gtk_progress_bar_new();
-  gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(sb->bar), TRUE);
-  gtk_widget_set_size_request(sb->bar, 230, -1);
-  gtk_widget_set_valign(sb->bar, GTK_ALIGN_CENTER);
-  gtk_box_append(GTK_BOX(sb->box), sb->bar);
+  gtk_widget_add_css_class(sb->clock, "clock");
   sb->health = item(sb->box, "");
   sb->audio = item(sb->box, "");
   sb->decodes = item(sb->box, "");

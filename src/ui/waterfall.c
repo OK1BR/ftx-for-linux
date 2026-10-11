@@ -1,5 +1,6 @@
 /* waterfall.c — see waterfall.h.  No spectrum strip: Richard 2026-10-11,
- * "spektrum dej pryč úplně, nech tam jen vodopád".  Copyright (C) 2026 Richard Fakenberg, OK1BR.
+ * "spektrum dej pryč úplně, nech tam jen vodopád".  The Rx/Tx numbers are not
+ * drawn here either (v2 layout): flags in the axis, numbers in the console.  Copyright (C) 2026 Richard Fakenberg, OK1BR.
  * GPL-3.0-or-later. */
 #include "waterfall.h"
 
@@ -214,6 +215,14 @@ static void hhmmss_of(gint64 period_idx, gint64 period_us, char out[8])
   snprintf(out, 8, "%02d%02d%02d", (int)(secs / 3600), (int)((secs / 60) % 60), (int)(secs % 60));
 }
 
+struct placed { int pi; double x, half; int anchor; const struct label *l; };
+static int cmp_placed(const void *a, const void *b)
+{
+  const struct placed *p = a, *q = b;
+  if (p->pi != q->pi) return p->pi - q->pi;
+  return (p->x > q->x) - (p->x < q->x);
+}
+
 static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
 {
   FtxWaterfall *w = FTX_WATERFALL(widget);
@@ -313,10 +322,12 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
     }
   }
 
-  /* decode labels on their traces */
-  if (w->show_labels) {
+  /* decode labels on their traces, in up to three lanes: a label that would
+   * overlap its left neighbour drops a lane (sorted by frequency per period) */
+  if (w->show_labels && w->labels->len > 0 && npr > 0) {
     cairo_set_font_size(cr, 10.5);
-    int stack[80] = { 0 };
+    struct placed *pl = g_newa(struct placed, w->labels->len);
+    guint np = 0;
     for (guint i = 0; i < w->labels->len; i++) {
       const struct label *l = &g_array_index(w->labels, struct label, i);
       int pi = -1;
@@ -326,24 +337,42 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
         if (atoi(t) == l->nutc) { pi = k; break; }
       }
       if (pi < 0) continue;
-      double x = x_of(w, l->hz + w->bw_hz / 2, W);
       /* anchored 10 s after the period start (FT4: 4 s) so a label does not
        * move while the period is still filling — decodes arrive before its end */
       gint64 target = pr[pi].idx * period_us + (gint64)(period_us * (w->period_s > 10 ? 10.0 / w->period_s : 0.55));
       int r_anchor = pr[pi].first;
       for (int r = pr[pi].last; r >= pr[pi].first; r--)
         if (w->row_t[row_index(w, r)] >= target) { r_anchor = r; break; }
-      double ly = wy0 + r_anchor + 4 + (stack[pi]++ % 3) * 13;
       cairo_text_extents_t te;
       cairo_text_extents(cr, l->text, &te);
+      pl[np].pi = pi;
+      pl[np].x = x_of(w, l->hz + w->bw_hz / 2, W);
+      pl[np].half = te.width / 2;
+      pl[np].anchor = r_anchor;
+      pl[np].l = l;
+      np++;
+    }
+    qsort(pl, np, sizeof *pl, cmp_placed);
+    double lane_right[80][3];
+    for (int k = 0; k < 80; k++) lane_right[k][0] = lane_right[k][1] = lane_right[k][2] = -1e9;
+    for (guint i = 0; i < np; i++) {
+      const double left = pl[i].x - pl[i].half - 3, right = pl[i].x + pl[i].half + 3;
+      int lane = -1;
+      for (int k = 0; k < 3; k++) if (lane_right[pl[i].pi][k] + 4 <= left) { lane = k; break; }
+      if (lane < 0) {
+        lane = 0;
+        for (int k = 1; k < 3; k++) if (lane_right[pl[i].pi][k] < lane_right[pl[i].pi][lane]) lane = k;
+      }
+      lane_right[pl[i].pi][lane] = right;
+      double ly = wy0 + pl[i].anchor + 4 + lane * 13;
       cairo_set_source_rgba(cr, 0, 0, 0, 0.6);
-      cairo_rectangle(cr, x - te.width / 2 - 3, ly - 10, te.width + 6, 13);
+      cairo_rectangle(cr, left, ly - 10, right - left, 13);
       cairo_fill(cr);
-      if (l->kind == FTX_WF_LABEL_TO_ME) cairo_set_source_rgb(cr, 1.0, 0.62, 0.2);
-      else if (l->kind == FTX_WF_LABEL_CQ) cairo_set_source_rgb(cr, 0.55, 0.95, 0.55);
+      if (pl[i].l->kind == FTX_WF_LABEL_TO_ME) cairo_set_source_rgb(cr, 1.0, 0.62, 0.2);
+      else if (pl[i].l->kind == FTX_WF_LABEL_CQ) cairo_set_source_rgb(cr, 0.55, 0.95, 0.55);
       else cairo_set_source_rgba(cr, 1, 1, 1, 0.8);
-      cairo_move_to(cr, x - te.width / 2, ly);
-      cairo_show_text(cr, l->text);
+      cairo_move_to(cr, pl[i].x - pl[i].half, ly);
+      cairo_show_text(cr, pl[i].l->text);
     }
   }
 
@@ -359,19 +388,16 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
   cairo_move_to(cr, xt + xw, AXIS_H + 1); cairo_line_to(cr, xt + xw, H); cairo_stroke(cr);
   cairo_set_source_rgba(cr, 1.0, 0.3, 0.25, 0.10);
   cairo_rectangle(cr, xt, AXIS_H + 1, xw, H); cairo_fill(cr);
-  /* the Rx/Tx readout sits at the bottom edge, beside the brackets, away
-   * from the newest rows and their labels */
-  cairo_set_font_size(cr, 11);
-  char t[24];
-  double bx = MAX(xr, xt) + xw + 3;
-  if (bx + 56 > W) bx = MIN(xr, xt) - 56;
-  double by = H - 31;
-  cairo_set_source_rgba(cr, 0, 0, 0, 0.6);
-  cairo_rectangle(cr, bx, by, 52, 28); cairo_fill(cr);
-  snprintf(t, sizeof t, "Rx %4.0f", w->rx_hz);
-  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 1); cairo_move_to(cr, bx + 3, by + 11); cairo_show_text(cr, t);
-  snprintf(t, sizeof t, "Tx %4.0f", w->tx_hz);
-  cairo_set_source_rgba(cr, 1.0, 0.35, 0.3, 1); cairo_move_to(cr, bx + 3, by + 24); cairo_show_text(cr, t);
+  /* Rx / Tx flags in the axis strip (the numbers live in the console and
+   * the Rx-frequency pane header) */
+  cairo_set_source_rgba(cr, 0, 0, 0, 0.7);
+  cairo_move_to(cr, xr - 8, 0); cairo_line_to(cr, xr + 8, 0); cairo_line_to(cr, xr, 14); cairo_close_path(cr); cairo_fill(cr);
+  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 1);
+  cairo_move_to(cr, xr - 6, 1); cairo_line_to(cr, xr + 6, 1); cairo_line_to(cr, xr, 11); cairo_close_path(cr); cairo_fill(cr);
+  cairo_set_source_rgba(cr, 0, 0, 0, 0.7);
+  cairo_move_to(cr, xt + xw - 8, 0); cairo_line_to(cr, xt + xw + 8, 0); cairo_line_to(cr, xt + xw, 14); cairo_close_path(cr); cairo_fill(cr);
+  cairo_set_source_rgba(cr, 1.0, 0.3, 0.25, 1);
+  cairo_move_to(cr, xt + xw - 6, 1); cairo_line_to(cr, xt + xw + 6, 1); cairo_line_to(cr, xt + xw, 11); cairo_close_path(cr); cairo_fill(cr);
   cairo_destroy(cr);
 }
 

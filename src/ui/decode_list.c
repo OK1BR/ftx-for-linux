@@ -6,7 +6,7 @@
 
 struct _FtxDecodeList {
   GtkWidget parent_instance;
-  GtkWidget *box, *list, *sw;
+  GtkWidget *box, *list, *sw, *note;
   int  last_nutc;
   gboolean last_ft4;
   int  periods;
@@ -61,7 +61,7 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *d)
   l->last_nutc = d->nutc;
   l->last_ft4 = d->ft4;
 
-  GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   gtk_widget_add_css_class(box, "decode");
   static const char *const cls[] = { NULL, "cq", "tome", "b4", "tx" };
   if (d->kind > 0 && d->kind <= FTX_DECODE_TX && cls[d->kind]) gtk_widget_add_css_class(box, cls[d->kind]);
@@ -72,10 +72,9 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *d)
   GtkWidget *lab = gtk_label_new(buf);
   gtk_label_set_xalign(GTK_LABEL(lab), 0);
   gtk_label_set_single_line_mode(GTK_LABEL(lab), TRUE);
-  gtk_label_set_ellipsize(GTK_LABEL(lab), PANGO_ELLIPSIZE_END);   /* the panes share the width; long lines shorten, the window need not grow */
+  gtk_label_set_ellipsize(GTK_LABEL(lab), PANGO_ELLIPSIZE_END);   /* a narrow pane shortens the line, the window need not grow */
   gtk_widget_add_css_class(lab, "mono");
-  gtk_widget_set_hexpand(lab, TRUE);
-  gtk_box_append(GTK_BOX(box), lab);
+  gtk_box_append(GTK_BOX(box), lab);        /* the tags follow the text, not the far edge of the pane */
   if (d->nap != 0) {   /* AP decode: jt9's "aN", and "?" when its quality is low */
     char a[8];
     snprintf(a, sizeof a, "a%d", d->nap % 10);
@@ -114,6 +113,11 @@ void ftx_decode_list_prune(FtxDecodeList *l, int keep_periods)
   }
 }
 
+void ftx_decode_list_set_note(FtxDecodeList *l, const char *text)
+{
+  gtk_label_set_text(GTK_LABEL(l->note), text ? text : "");
+}
+
 void ftx_decode_list_clear(FtxDecodeList *l)
 {
   gtk_list_box_remove_all(GTK_LIST_BOX(l->list));
@@ -147,11 +151,15 @@ static void ftx_decode_list_init(FtxDecodeList *l)
   gtk_widget_set_hexpand(title, TRUE);
   gtk_box_append(GTK_BOX(hdr), title);
   g_object_set_data(G_OBJECT(l), "title", title);
+  l->note = gtk_label_new("");
+  gtk_widget_add_css_class(l->note, "dim");
+  gtk_widget_add_css_class(l->note, "mono");
+  gtk_label_set_ellipsize(GTK_LABEL(l->note), PANGO_ELLIPSIZE_END);
+  gtk_box_append(GTK_BOX(hdr), l->note);
   GtkWidget *cols = gtk_label_new("UTC     dB   DT  Freq  Message");
   gtk_label_set_xalign(GTK_LABEL(cols), 0);
   gtk_label_set_ellipsize(GTK_LABEL(cols), PANGO_ELLIPSIZE_END);
   gtk_widget_add_css_class(cols, "mono");
-  gtk_widget_add_css_class(cols, "dim");
   gtk_widget_add_css_class(cols, "colhdr");
   gtk_box_append(GTK_BOX(l->box), hdr);
   gtk_box_append(GTK_BOX(l->box), cols);

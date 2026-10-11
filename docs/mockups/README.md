@@ -1,22 +1,71 @@
 # UI design mockups — FTX for Linux
 
-Throwaway **design references** for the GUI phase: two standalone libadwaita
-programs with synthetic data (no decoder, no radio), plus the PNGs rendered from
-them. They are **not part of the meson build**. Status 2026-10-11: Richard's
-verdict was "build it, we tune it in practice" — the layout is implemented in
-`src/ui/`; TX over TCI followed the same afternoon (Enable TX, Halt, Tune,
-Call CQ live; Log QSO waits for the log-for-linux link). The mockups stay as the design reference; the live program replaces
-the synthetic data with the real decoder, TCI audio and the WSJT-X QSO logic.
+Throwaway **design references** for the GUI: standalone libadwaita programs
+with synthetic data (no decoder, no radio), plus the PNGs rendered from them.
+They are **not part of the meson build**.  The layout they show is
+implemented in `src/ui/`; the live program replaces the synthetic data with
+the real decoder, TCI audio and the WSJT-X QSO logic.
 
 | File | What it shows |
 |---|---|
-| `ftx_main_window.c` → `ftx_main_window.png` | the main window, 1480×920, mid-QSO with our Tx3 on the air |
-| `ftx_main_window_user_theme.png` | the same window under the author's own GTK stylesheet (see the last section) |
+| `ftx_main_window_v2.c` → `ftx_main_window_v2.png` | the main window (second layout pass, 2026-10-11), 1519×1364, mid-QSO with our Tx3 on the air, under the author's GTK stylesheet |
+| `ftx_main_window_v2_idle.png` | the same window while receiving, no QSO |
+| `ftx_main_window_v2_stock.png` | the same window in stock Adwaita dark |
 | `ftx_preferences.c` → `ftx_preferences*.png` | the preferences dialog: Station, Radio, Decoder, Logging, Display |
 
 Everything in the pictures is made up: the band, the calls, the times
 (the mockup lives at 13:34:47 UTC so the decode rows, the period tags on the
-waterfall and the status clock agree).
+waterfall and the status clock agree).  The first-pass mockup (three
+columns, the Tx list in view) is gone; it survives in git history before
+2026-10-11 if ever needed.
+
+## The second layout pass (2026-10-11)
+
+After the first live afternoon Richard asked for a tidier arrangement ("zatím
+se mi to zdá takové moc nedodělané … připrav mi nejdřív návrhy").  The
+window on his desk is tiled by Hyprland next to sdr-for-linux at
+**1519×1364** on a 5120×1440 screen, palette Mono white, his own GTK
+stylesheet — the mockup is rendered in exactly that geometry and theme.  What
+looked unfinished: the controls strip was loose widgets without grouping or a
+shared baseline; the two decode panes split 50/50 left Rx frequency mostly
+empty with the `→ me` tags floating far from the text; the period progress
+was a small bar in the status line; waterfall labels overlapped and the Rx/Tx
+readout box floated over the newest rows.  Richard on the rendered proposal:
+"ok, zkus to, mockupy vypadají dobře".  The changes, all implemented:
+
+1. **The console** replaces the strip: two bounded groups of equal height.
+   *QSO* — the partner's call in large type, grid · km · °, the report to
+   send, the report received, Log QSO.  *Transmit* — a state badge drawn by
+   the program (RX grey, ARMED amber, ON AIR / TUNE red; the group border
+   follows), the message on the air or next in large monospace, the
+   `TxN · Hz` button, a state line and four equal buttons Call CQ, Enable TX,
+   Halt TX, Tune.
+2. **Tx frequency, Hold and Tx = Rx moved into the popover** under
+   `TxN · Hz`, beside Tx1–Tx6 with Auto sequence and the DX call/grid by
+   hand.  Hold is on permanently in practice and the Tx frequency is set by a
+   right click on the waterfall; on the strip they only took room.
+3. **The period line**: full width, 8 px, under the waterfall, fills over
+   the period; green while receiving, red in our slot with TX enabled or on
+   the air.  It replaces the progress bar of the status line and reads from
+   the corner of the eye.
+4. **Waterfall**: the Rx (green) and Tx (red) markers get flags in the axis
+   strip; the floating readout box is gone (the numbers live in the Rx
+   frequency pane header and on the `TxN · Hz` button).  Labels are laid out
+   in up to three lanes by overlap, sorted by frequency per period, instead of
+   by arrival order.
+5. **Decode panes**: a draggable divider with a persisted position (Band
+   activity keeps its width, default 820 px, Rx frequency takes the rest);
+   tags right after the text; the pane header carries the decode count and
+   period, or the Rx frequency; the column header is a subtle strip.  Both
+   panes stay wider than a jt9 line — the country, azimuth and B4 columns
+   that come with the log-for-linux link will fill the width.
+6. **Status line**: bold UTC clock, no progress bar, the rest unchanged.
+7. **Header**: the band beside the dial (`20 m · DIGU`), the subtitle is the
+   station only.
+
+Unchanged as decided before: one column, no spectrum strip, Tx1–Tx6 in the
+popover, the partner as text, the family palettes, labels without the `CQ`
+prefix.
 
 ## Design decisions
 
@@ -62,7 +111,7 @@ under any GTK theme. Below it the controls that need to be hit fast: Enable
 TX, Halt TX, Tune, Call CQ. The six standard messages Tx1–Tx6 follow with the
 auto-sequencer switch; the radio button marks what goes next. Tx frequency
 with Hold / Tx = Rx and the *Log QSO → log-for-linux* button close the panel.
-Everything is visible at 1480×920; nothing scrolls away.
+Everything is visible at 1519×1364; nothing scrolls away.
 
 *Changed after the first live run (Richard, 2026-10-11):* three columns were
 not ergonomic and made the window too wide — the layout is now **one
@@ -102,9 +151,10 @@ beyond TCI, and a second window.
 
 ```sh
 cd docs/mockups
-cc ftx_main_window.c -o ftx-mock-main $(pkg-config --cflags --libs libadwaita-1) -lm
+cc ftx_main_window_v2.c -o ftx-mock-v2 $(pkg-config --cflags --libs libadwaita-1) -lm
 cc ftx_preferences.c -o ftx-mock-prefs $(pkg-config --cflags --libs libadwaita-1)
-./ftx-mock-main                 # waterfall scrolls, nothing else is live
+./ftx-mock-v2                   # waterfall scrolls, nothing else is live
+MOCK_STATE=idle ./ftx-mock-v2   # receiving, no QSO
 MOCK_PAGE=decoder ./ftx-mock-prefs   # station | radio | decoder | logging | display
 ```
 
@@ -116,11 +166,10 @@ canvas to the window.
 
 ```sh
 gtk4-broadwayd :21 &                                   # listens on TCP 8101
-XDG_CONFIG_HOME=$(mktemp -d) GDK_BACKEND=broadway BROADWAY_DISPLAY=:21 ./ftx-mock-main &
+XDG_CONFIG_HOME=$(mktemp -d) GDK_BACKEND=broadway BROADWAY_DISPLAY=:21 ./ftx-mock-v2 &
 sleep 5                                                # a heavy user theme needs the time
 google-chrome-stable --headless=new --disable-gpu --hide-scrollbars \
-  --window-size=1520,960 --timeout=4000 --screenshot=raw.png http://127.0.0.1:8101/
-magick raw.png -trim +repage ftx_main_window.png
+  --window-size=1519,1364 --timeout=4000 --screenshot=ftx_main_window_v2_stock.png http://127.0.0.1:8101/
 ```
 
 The empty `XDG_CONFIG_HOME` keeps the user's `gtk.css` out, so the picture is
@@ -129,18 +178,19 @@ stock Adwaita dark; leave it off for the user-theme variant.
 Preference pages the same way with `./ftx-mock-prefs`, `MOCK_PAGE=<page>` and
 `--window-size=800,860`. Three things that cost time to find out: the Broadway
 daemon reports a small default screen until a browser connects and GTK clamps
-a window's *default* size to it, so under Broadway the mockups pin their
-design size with a hard size request (`pin_size_under_broadway`); Chrome's
+a window's *default* size to it, so under Broadway the v2 mockup maximizes
+itself into the browser canvas (the preferences mockup pins its size with a
+hard size request, `pin_size_under_broadway`); Chrome's
 `--virtual-time-budget` does not wait for WebSocket traffic, so it races the
 Broadway canvas and yields blank pictures — use the real-time `--timeout`;
 and `GtkWidgetPaintable` self-snapshots are unreliable without a Broadway
 client, because frames are painted only when the client acknowledges them.
 
-The PNGs show stock Adwaita dark (rendered with an empty `XDG_CONFIG_HOME`,
-so no user stylesheet is loaded). `ftx_main_window_user_theme.png` is the same
-window rendered with the author's own GTK stylesheet, `~/.config/gtk-4.0/gtk.css`
-(USER priority, above application CSS), which recolours every stock widget —
-black window, white active toggles, so the red *Enable TX* becomes a white
-one. That is the reason the TX state is also carried by custom-drawn elements
-(transmission card, `on air` tag, status bar), which a user stylesheet does
-not touch.
+`ftx_main_window_v2_stock.png` shows stock Adwaita dark (rendered with an
+empty `XDG_CONFIG_HOME`, so no user stylesheet is loaded).  The other two
+PNGs are rendered with the author's own GTK stylesheet,
+`~/.config/gtk-4.0/gtk.css` (USER priority, above application CSS), which
+recolours every stock widget — black window, white active toggles, so the
+red *Enable TX* becomes a white one.  That is the reason the TX state is
+also carried by custom-drawn elements (the badge, the group border, the
+period line, the `on air` tag), which a user stylesheet does not touch.
