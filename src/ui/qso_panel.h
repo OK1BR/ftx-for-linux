@@ -22,7 +22,7 @@ typedef enum {
   FTX_QSO_ACTION_CALL_CQ,
   FTX_QSO_ACTION_ENABLE_TX,     /* read the state with ftx_qso_panel_get_tx_enabled */
   FTX_QSO_ACTION_HALT_TX,
-  FTX_QSO_ACTION_TUNE,
+  FTX_QSO_ACTION_TUNE,          /* read the state with ftx_qso_panel_get_tune */
   FTX_QSO_ACTION_LOG_QSO,
 } FtxQsoAction;
 
@@ -52,8 +52,11 @@ void        ftx_qso_panel_set_auto_seq(FtxQsoPanel *p, gboolean v);
 gboolean    ftx_qso_panel_get_auto_seq(FtxQsoPanel *p);
 void        ftx_qso_panel_set_tx_enabled(FtxQsoPanel *p, gboolean v);
 gboolean    ftx_qso_panel_get_tx_enabled(FtxQsoPanel *p);
-/* Grey out the transmit controls (with the reason as tooltip). */
+void        ftx_qso_panel_set_tune(FtxQsoPanel *p, gboolean v);
+gboolean    ftx_qso_panel_get_tune(FtxQsoPanel *p);
+/* Grey out the transmit controls / the Log QSO button (with the reason as tooltip). */
 void        ftx_qso_panel_set_tx_available(FtxQsoPanel *p, gboolean available, const char *why);
+void        ftx_qso_panel_set_log_available(FtxQsoPanel *p, gboolean available, const char *why);
 
 /* Signals: "changed" (any editable field: DX call/grid, report, next message,
  * Tx frequency, Hold, Tx=Rx, Auto sequence) and "action" (gint FtxQsoAction). */

@@ -11,6 +11,7 @@
 
 #include "app/messages.h"
 #include "app/rx_engine.h"
+#include "app/tx_engine.h"
 #include "decode_list.h"
 #include "preferences.h"
 #include "qso_panel.h"
@@ -20,12 +21,14 @@
 /* mainwindow.h */
 enum { CALLING, REPLYING, REPORT, ROGER_REPORT, ROGERS, SIGNOFF };
 
-#define TX_UNAVAILABLE "Transmitting over TCI is not implemented yet (RX only)"
+#define TX_UNAVAILABLE  "Not connected to the radio"
+#define LOG_UNAVAILABLE "Logging to log-for-linux comes with the next phase"
 
 struct _FtxWindow {
   AdwApplicationWindow parent_instance;
   FtxSettings    *s;
   FtxRxEngine    *eng;
+  FtxTxEngine    *tx;
   ftx_pack77_ctx *pc;
 
   GtkWidget *toasts, *dial, *modelab, *title, *ft8_btn, *ft4_btn, *monitor_btn, *paned;
@@ -45,6 +48,17 @@ struct _FtxWindow {
   gboolean calling_cq;        /* m_bCallingCQ  */
   gboolean tx_first;          /* m_txFirst     */
   FtxStdMsgs msgs;
+
+  /* transmitting (WSJT-X names where they exist) */
+  gboolean tx_enabled;        /* m_auto                                   */
+  gboolean transmitting;      /* keyed by us right now                    */
+  gboolean tuning;
+  gint64   tx_period_idx;     /* the period (epoch / period) we last started in */
+  char     tx_msg_now[38];    /* m_currentMessage                         */
+  int      tx_ntx_now;
+  char     last_sent[38];     /* m_lastMessageSent                        */
+  int      watchdog_count;    /* consecutive transmissions of the same message */
+  char     watchdog_msg[38];
 
   /* last period statistics */
   int      last_nutc;
@@ -179,22 +193,188 @@ static void update_card(FtxWindow *win)
   double secs = (now / 1000000) % 86400 + (now % 1000000) / 1e6;
   double into = fmod(secs, p);
   gboolean odd = ((gint64)floor(secs / p)) % 2 == 1;
-  /* which period is ours: tx_first = we transmit in the even period */
-  gboolean ours_now = (odd != win->tx_first);
+  gboolean ours_now = (odd != win->tx_first);     /* tx_first = we transmit in the even period */
   int start = (int)(floor(secs / p) * p);
-  char state[96], detail[48];
+  char state[112], detail[48];
   const char *msg = win->msgs.tx[win->ntx - 1];
+  gboolean on_air = win->transmitting || win->tuning;
   if (!win->s->call[0]) {
     snprintf(state, sizeof state, "Set your callsign and grid in Preferences › Station");
     msg = "";
     detail[0] = '\0';
+  } else if (win->tuning) {
+    snprintf(state, sizeof state, "Tune · steady tone on the air");
+    msg = "TUNE";
+    snprintf(detail, sizeof detail, "%d Hz", win->s->tx_hz);
+  } else if (win->transmitting) {
+    snprintf(state, sizeof state, "On the air · %s period %02d%02d%02d · %.0f s left", odd ? "odd" : "even",
+             start / 3600, (start / 60) % 60, start % 60, p - into);
+    msg = win->tx_msg_now;
+    snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->tx_ntx_now, win->s->tx_hz);
+  } else if (win->tx_enabled) {
+    double wait = ours_now ? (p - into) + p : (p - into);
+    snprintf(state, sizeof state, "TX enabled · goes out in the %s period · %.0f s", win->tx_first ? "even" : "odd", wait);
+    snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->ntx, win->s->tx_hz);
   } else {
-    snprintf(state, sizeof state, "%s · %s period %02d%02d%02d · %.0f s left%s", win->connected ? "Receiving" : "Not connected", odd ? "odd" : "even",
-             start / 3600, (start / 60) % 60, start % 60, p - into,
-             ours_now ? " · our slot" : "");
+    snprintf(state, sizeof state, "%s · %s period %02d%02d%02d · %.0f s left%s", win->connected ? "Receiving" : "Not connected",
+             odd ? "odd" : "even", start / 3600, (start / 60) % 60, start % 60, p - into, ours_now ? " · our slot" : "");
     snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->ntx, win->s->tx_hz);
   }
-  ftx_qso_panel_set_card(win->qso, state, msg[0] ? msg : "(no message)", detail, FALSE);
+  ftx_qso_panel_set_card(win->qso, state, msg[0] ? msg : "(no message)", detail, on_air);
+}
+
+/* ---- transmitting ---------------------------------------------------------- */
+
+static gboolean mode_ok(FtxWindow *win)
+{
+  if (!win->s->check_mode) return TRUE;
+  char *m = g_ascii_strdown(ftx_rx_engine_mode(win->eng), -1);
+  gboolean ok = strcmp(m, "digu") == 0 || strcmp(m, "usb") == 0;
+  if (!ok) {
+    char t[96];
+    snprintf(t, sizeof t, "The radio is in %s — switch it to DIGU before transmitting", m[0] ? m : "an unknown mode");
+    toast(win, t);
+  }
+  g_free(m);
+  return ok;
+}
+
+static void disable_tx(FtxWindow *win)
+{
+  win->tx_enabled = FALSE;
+  ftx_qso_panel_set_tx_enabled(win->qso, FALSE);
+  update_card(win);
+}
+
+static void write_all_txt_tx(FtxWindow *win, const char *msg)
+{
+  if (!win->s->all_txt) return;
+  if (!win->all_txt) {
+    char *path = g_build_filename(ftx_settings_data_dir(), "ALL.TXT", NULL);
+    win->all_txt = fopen(path, "a");
+    g_free(path);
+    if (!win->all_txt) return;
+  }
+  GDateTime *now = g_date_time_new_now_utc();
+  char *ts = g_date_time_format(now, "%y%m%d_%H%M%S");
+  char mhz[G_ASCII_DTOSTR_BUF_SIZE];
+  g_ascii_formatd(mhz, sizeof mhz, "%10.3f", win->dial_hz / 1e6);
+  fprintf(win->all_txt, "%s%s Tx %-6s   0  0.0%5d %s\n", ts, mhz, win->s->ft4 ? "FT4" : "FT8", win->s->tx_hz, msg);
+  fflush(win->all_txt);
+  g_free(ts);
+  g_date_time_unref(now);
+}
+
+/* start the current message in this period (guiUpdate: m_bTxTime, fTR < 0.75) */
+static void start_transmission(FtxWindow *win, gint64 period_start_us)
+{
+  const char *msg = win->msgs.tx[win->ntx - 1];
+  if (!mode_ok(win)) { disable_tx(win); return; }
+  /* runaway watchdog: the same message over and over */
+  if (strcmp(msg, win->watchdog_msg) == 0) win->watchdog_count++;
+  else { win->watchdog_count = 1; g_strlcpy(win->watchdog_msg, msg, sizeof win->watchdog_msg); }
+  if (win->s->watchdog_min > 0 && win->watchdog_count * 2 * period_s(win) > win->s->watchdog_min * 60.0) {
+    toast(win, "TX watchdog: the same message for too long — TX disabled");
+    win->watchdog_count = 0;
+    disable_tx(win);
+    return;
+  }
+  gint64 start = period_start_us + (gint64)((win->s->ft4 ? FTX_TX_DELAY_FT4 : FTX_TX_DELAY_FT8) * 1e6);
+  char sent[38];
+  if (!ftx_tx_engine_transmit(win->tx, ftx_rx_engine_tci(win->eng), win->s->ft4, msg, win->s->tx_hz, start,
+                              win->s->tx_level_pct / 100.0, sent)) {
+    toast(win, "The message does not pack — not transmitted");
+    disable_tx(win);
+    return;
+  }
+  g_strlcpy(win->tx_msg_now, sent, sizeof win->tx_msg_now);
+  win->tx_ntx_now = win->ntx;
+  /* the Rx-frequency pane shows our transmission as a Tx line, like WSJT-X */
+  FtxDecodeRow row;
+  memset(&row, 0, sizeof row);
+  gint64 secs = (period_start_us / 1000000) % 86400;
+  row.nutc = (int)((secs / 3600) * 10000 + ((secs / 60) % 60) * 100 + secs % 60);
+  row.freq = win->s->tx_hz;
+  g_strlcpy(row.msg, sent, sizeof row.msg);
+  row.kind = FTX_DECODE_TX;
+  row.ft4 = win->s->ft4;
+  ftx_decode_list_add(win->rxl, &row);
+  write_all_txt_tx(win, sent);
+}
+
+static void maybe_transmit(FtxWindow *win)
+{
+  if (!win->tx_enabled || !win->connected || win->tuning || ftx_tx_engine_active(win->tx)) return;
+  const gint64 now = g_get_real_time();
+  const gint64 period_us = (gint64)(period_s(win) * 1e6);
+  const gint64 pidx = now / period_us;              /* the epoch is period-aligned */
+  const gboolean odd = (pidx % 2) == 1;
+  if (odd == win->tx_first) return;                 /* not our period */
+  if (pidx == win->tx_period_idx) return;           /* already handled this period */
+  if (now - pidx * period_us >= (gint64)(0.75 * period_us)) return;   /* too late to start */
+  if (!win->msgs.tx[win->ntx - 1][0]) return;
+  win->tx_period_idx = pidx;
+  start_transmission(win, pidx * period_us);
+}
+
+/* message_is_73 for standard messages: the last word is 73 or RR73 */
+static gboolean message_is_73(const char *msg)
+{
+  const char *sp = strrchr(msg, ' ');
+  const char *last = sp ? sp + 1 : msg;
+  return strcmp(last, "73") == 0 || strcmp(last, "RR73") == 0;
+}
+
+static void on_tx_state(gboolean transmitting, const char *info, gpointer user)
+{
+  FtxWindow *win = user;
+  if (transmitting) {
+    if (!win->tuning) {
+      win->transmitting = TRUE;
+      ftx_qso_panel_set_on_air(win->qso, win->tx_ntx_now - 1);
+    }
+  } else {
+    gboolean was_tune = win->tuning;
+    win->transmitting = FALSE;
+    win->tuning = FALSE;
+    ftx_qso_panel_set_on_air(win->qso, -1);
+    if (was_tune) {
+      ftx_qso_panel_set_tune(win->qso, FALSE);
+    } else if (strcmp(info, "done") == 0) {
+      /* after a transmission (mainwindow.cpp ~8106): the first 73 ends the QSO and auto TX */
+      gboolean is_73 = message_is_73(win->tx_msg_now);
+      gboolean sent_first_73 = is_73 && !message_is_73(win->last_sent);
+      if (sent_first_73 || (is_73 && win->progress == CALLING)) {
+        disable_tx(win);
+        toast(win, "73 sent — QSO complete, TX off");
+      }
+      g_strlcpy(win->last_sent, win->tx_msg_now, sizeof win->last_sent);
+    }
+  }
+  update_card(win);
+}
+
+static void on_tune(FtxWindow *win, gboolean on)
+{
+  if (on) {
+    if (!win->connected || ftx_tx_engine_active(win->tx) || !mode_ok(win)) { ftx_qso_panel_set_tune(win->qso, FALSE); return; }
+    win->tuning = TRUE;
+    if (!ftx_tx_engine_tune(win->tx, ftx_rx_engine_tci(win->eng), win->s->tx_hz, win->s->tx_level_pct / 100.0)) {
+      win->tuning = FALSE;
+      ftx_qso_panel_set_tune(win->qso, FALSE);
+    }
+  } else if (win->tuning) {
+    ftx_tx_engine_stop(win->tx);
+  }
+  update_card(win);
+}
+
+static void halt_tx(FtxWindow *win)
+{
+  ftx_tx_engine_stop(win->tx);
+  win->tuning = FALSE;
+  ftx_qso_panel_set_tune(win->qso, FALSE);
+  disable_tx(win);
 }
 
 static gboolean tick(gpointer data)
@@ -207,6 +387,7 @@ static gboolean tick(gpointer data)
   double into = fmod(secs, p);
   gboolean odd = ((gint64)floor(secs / p)) % 2 == 1;
   ftx_status_bar_set_clock(win->sb, (int)(s / 3600), (int)((s / 60) % 60), (int)(s % 60), p, into, odd);
+  maybe_transmit(win);
   static int last_sec = -1;
   if ((int)s != last_sec) { last_sec = (int)s; update_card(win); }
   return G_SOURCE_CONTINUE;
@@ -470,9 +651,8 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
   write_all_txt(win, d);
 
   /* the auto-sequencer reacts when our partner calls us (auto_sequence in
-   * mainwindow.cpp; WSJT-X also requires TX to be enabled — that gate comes
-   * with the TX phase, until then the sequencer shows what it would send) */
-  if (ftx_qso_panel_get_auto_seq(win->qso) && for_us && mybase[0]) {
+   * mainwindow.cpp: TX enabled and Auto sequence on) */
+  if (win->tx_enabled && ftx_qso_panel_get_auto_seq(win->qso) && for_us && mybase[0]) {
     char partner_base[16];
     ftx_msg_base_call(win->his_call, partner_base, sizeof partner_base);
     gboolean from_partner = partner_base[0] && strstr(w2, partner_base) != NULL;
@@ -546,8 +726,10 @@ static void set_tci_status(FtxWindow *win)
 static void on_closed(gpointer user)
 {
   FtxWindow *win = user;
+  halt_tx(win);
   ftx_rx_engine_disconnect(win->eng);
   win->connected = FALSE;
+  ftx_qso_panel_set_tx_available(win->qso, FALSE, TX_UNAVAILABLE);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(win->monitor_btn), FALSE);
   set_tci_status(win);
   set_audio_status(win, FALSE);
@@ -579,6 +761,7 @@ static void connect_done(GObject *src, GAsyncResult *res, gpointer data)
     win->connected = TRUE;
     win->dial_hz = ftx_rx_engine_vfo_hz(win->eng);
     ftx_waterfall_clear(win->wf);
+    ftx_qso_panel_set_tx_available(win->qso, TRUE, NULL);
   } else {
     win->connected = FALSE;
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(win->monitor_btn), FALSE);
@@ -607,8 +790,10 @@ static void do_connect(FtxWindow *win)
 static void do_disconnect(FtxWindow *win)
 {
   if (!win->connected) return;
+  halt_tx(win);
   ftx_rx_engine_disconnect(win->eng);
   win->connected = FALSE;
+  ftx_qso_panel_set_tx_available(win->qso, FALSE, TX_UNAVAILABLE);
   set_tci_status(win);
   set_audio_status(win, FALSE);
   update_dial(win);
@@ -676,17 +861,31 @@ static void on_qso_changed(FtxQsoPanel *q, gpointer user)
 
 static void on_qso_action(FtxQsoPanel *q, int action, gpointer user)
 {
-  (void)q;
   FtxWindow *win = user;
   switch (action) {
   case FTX_QSO_ACTION_CALL_CQ:
     win->progress = CALLING;
     win->calling_cq = TRUE;
     set_ntx(win, 6);
-    toast(win, "Next message is CQ — transmitting comes with the TX phase");
+    if (win->connected) {
+      win->tx_enabled = TRUE;
+      ftx_qso_panel_set_tx_enabled(q, TRUE);
+    }
+    update_card(win);
+    break;
+  case FTX_QSO_ACTION_ENABLE_TX:
+    win->tx_enabled = ftx_qso_panel_get_tx_enabled(q) && win->connected;
+    if (win->tx_enabled) { win->watchdog_count = 0; win->tx_period_idx = -1; }
+    update_card(win);
+    break;
+  case FTX_QSO_ACTION_HALT_TX:
+    halt_tx(win);
+    break;
+  case FTX_QSO_ACTION_TUNE:
+    on_tune(win, ftx_qso_panel_get_tune(q));
     break;
   default:
-    toast(win, TX_UNAVAILABLE);
+    toast(win, LOG_UNAVAILABLE);
     break;
   }
 }
@@ -802,6 +1001,7 @@ static void ftx_window_dispose(GObject *obj)
 {
   FtxWindow *win = FTX_WINDOW(obj);
   if (win->tick_id) { g_source_remove(win->tick_id); win->tick_id = 0; }
+  if (win->tx) { ftx_tx_engine_free(win->tx); win->tx = NULL; }
   if (win->eng) { ftx_rx_engine_free(win->eng); win->eng = NULL; }
   if (win->all_txt) { fclose(win->all_txt); win->all_txt = NULL; }
   g_clear_pointer(&win->pc, g_free);
@@ -835,8 +1035,11 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   ftx_rx_engine_set_vfo_cb(win->eng, on_vfo, win);
   ftx_rx_engine_set_tx_cb(win->eng, on_tx, win);
   ftx_rx_engine_set_closed_cb(win->eng, on_closed, win);
+  win->tx = ftx_tx_engine_new(g_main_context_default());
+  ftx_tx_engine_set_state_cb(win->tx, on_tx_state, win);
   win->progress = CALLING;
   win->ntx = 6;
+  win->tx_period_idx = -1;
 
   gtk_window_set_title(GTK_WINDOW(win), "FTX for Linux");
   gtk_window_set_default_size(GTK_WINDOW(win), s->win_w > 0 ? s->win_w : 1480, s->win_h > 0 ? s->win_h : 920);
@@ -926,6 +1129,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
 
   /* state from the settings */
   ftx_qso_panel_set_tx_available(win->qso, FALSE, TX_UNAVAILABLE);
+  ftx_qso_panel_set_log_available(win->qso, FALSE, LOG_UNAVAILABLE);
   ftx_qso_panel_set_hold(win->qso, s->hold_tx);
   ftx_qso_panel_set_tx_eq_rx(win->qso, s->tx_eq_rx);
   ftx_qso_panel_set_auto_seq(win->qso, s->auto_seq);

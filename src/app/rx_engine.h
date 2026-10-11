@@ -26,6 +26,7 @@
 G_BEGIN_DECLS
 
 typedef struct _FtxRxEngine FtxRxEngine;
+struct _FtxTciClient;
 
 /* One decode, with the period it belongs to. */
 typedef struct {
@@ -91,6 +92,8 @@ gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *host, guint16 port, G
 void     ftx_rx_engine_disconnect(FtxRxEngine *e);
 gboolean ftx_rx_engine_connected(FtxRxEngine *e);
 
+/* The TCI client while connected (NULL otherwise) — the TX side sends on it. */
+struct _FtxTciClient *ftx_rx_engine_tci(FtxRxEngine *e);
 double      ftx_rx_engine_vfo_hz(FtxRxEngine *e);
 gboolean    ftx_rx_engine_tx(FtxRxEngine *e);
 const char *ftx_rx_engine_device(FtxRxEngine *e);

@@ -4,8 +4,8 @@ Throwaway **design references** for the GUI phase: two standalone libadwaita
 programs with synthetic data (no decoder, no radio), plus the PNGs rendered from
 them. They are **not part of the meson build**. Status 2026-10-11: Richard's
 verdict was "build it, we tune it in practice" — the layout is implemented in
-`src/ui/` (RX only so far; the TX controls are greyed out until TX over TCI
-lands). The mockups stay as the design reference; the live program replaces
+`src/ui/`; TX over TCI followed the same afternoon (Enable TX, Halt, Tune,
+Call CQ live; Log QSO waits for the log-for-linux link). The mockups stay as the design reference; the live program replaces
 the synthetic data with the real decoder, TCI audio and the WSJT-X QSO logic.
 
 | File | What it shows |

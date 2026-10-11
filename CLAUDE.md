@@ -229,7 +229,38 @@ the waterfall palettes are the family table from sdr-for-linux's
 `waterfall.c` (Classic, Mono white, Mono green, Mono amber, Inferno, Turbo —
 same stops, same names, selectable in Preferences › Display); the spectrum
 strip above the waterfall is gone ("spektrum dej pryč úplně, nech tam jen
-vodopád"), only the frequency axis and the rows remain.
+vodopád"), only the frequency axis and the rows remain; 4 rows/s default.
+Decodes carry jt9's AP marks (aN, "?") in the lists, the labels and ALL.TXT
+(two false "OK1BR … R MJ61"-style AP decodes on the air prompted it).
+
+2026-10-11 (afternoon): **TX over TCI done** — Richard: "chybí nám ladicí
+tlačítko tune" / "počkej, TX ještě není podporováno?".  `src/app/tx_engine.c`
+(GLib): keys with `trx:0,true,tci;`, streams the 48 kHz FT8/FT4 waveform
+(`ftx_ft8_tx_wave`/`ftx_ft4_tx_wave`, nsps 7680/2304, scaled by the TX
+audio level) as TX audio Stream blocks (type 2, float32 mono, 2048 frames)
+with WSJT-X's Modulator timing (FT8 starts 0.5 s into the period, FT4 0.3 s,
+late start skips into the waveform), 150 ms of silence first so the stream
+runs that much ahead of real time (sdr-for-linux's exciter plays the first
+block on arrival and pads underruns with silence; its ring is 341 ms), a
+100 ms silent tail, then `trx:0,false;`.  Tune = a steady tone at the Tx
+frequency the same way.  `tci_client` got `ftx_tci_client_send` and
+`_send_tx_audio` (the out queue carries text or binary).  `window.c`:
+Enable TX = WSJT-X's m_auto — the tick starts the current message in our
+period (tx_first ↔ even; not after 0.75 of the period), Call CQ = Tx6 +
+Enable TX, Halt TX unkeys now, the first 73 sent ends auto TX
+(cease_auto_Tx_after_QSO), a runaway watchdog (`watchdog_min`, same message
+too long), mode check (DIGU/USB) before keying, the Tx line in the Rx pane
+and in ALL.TXT (WSJT-X write_all "Tx" format); the sequencer's automatic
+reaction is now gated on Enable TX like WSJT-X; the RX engine skips a period
+in which the radio was keyed at any time.  Preferences › Radio › Transmit:
+TX audio level (% FS, default 90) and the mode check.  Verified against the
+mock (dev/tools/tci_mock_server.c now echoes trx and captures TX audio
+into a 48 kHz WAV aligned to the period): Call CQ → keyed in the next odd
+period, first block 0.353 s into it, 12.9 s captured, decimated to 12 kHz
+it decodes as "CQ K1JT FN20" at 1500 Hz with DT 0.0; Tune → 1500 Hz at
+0.90 FS until the second click.  Not yet verified: on the real radio (the
+first key-up is Richard's — DIGU, antenna/dummy load).  Log QSO stays
+greyed out until the log-for-linux link.
 Headless testing note: the app is a unique GApplication — run test
 instances under `dbus-run-session`, or they just activate the live one.
 The live instance is relaunched from `/tmp/ftx-live` (log `app.log`) via

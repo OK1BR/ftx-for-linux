@@ -46,6 +46,7 @@ struct _FtxRxEngine {
   GAsyncQueue  *queue;
   GThread      *worker;
   gboolean      connected;
+  gboolean      keyed_seen;     /* the radio was keyed at some point of the period being assembled */
 
   /* worker thread only */
   gboolean    ltry_a8;
@@ -203,8 +204,10 @@ static void on_period(const int16_t *samples, guint nsamp, int day, int nutc, do
   j->p8 = e->p8;
   j->p4 = e->p4;
   FtxRxPeriodStatus st = FTX_RX_PERIOD_DECODED;
+  gboolean keyed = e->keyed_seen || ftx_tci_client_tx(e->tci);
+  e->keyed_seen = FALSE;
   if (gap_ms > 0) { e->skipped_gap++; st = FTX_RX_PERIOD_GAP; }
-  else if (ftx_tci_client_tx(e->tci)) { e->skipped_keyed++; st = FTX_RX_PERIOD_KEYED; }
+  else if (keyed) { e->skipped_keyed++; st = FTX_RX_PERIOD_KEYED; }
   g_mutex_unlock(&e->lock);
   if (st != FTX_RX_PERIOD_DECODED) {
     emit_period(e, j, st, 0, 0.0, 0.0);
@@ -277,6 +280,12 @@ static void on_vfo(double hz, gpointer user)
 
 static void on_tx(gboolean tx, gpointer user)
 {
+  FtxRxEngine *e = user;
+  if (tx) {
+    g_mutex_lock(&e->lock);
+    e->keyed_seen = TRUE;          /* our own transmission: that period is not decoded */
+    g_mutex_unlock(&e->lock);
+  }
   struct emit *m = emit_new(user, EM_TX);
   m->tx = tx;
   emit(m);
@@ -433,6 +442,7 @@ void ftx_rx_engine_disconnect(FtxRxEngine *e)
 }
 
 gboolean    ftx_rx_engine_connected(FtxRxEngine *e) { return e->connected; }
+struct _FtxTciClient *ftx_rx_engine_tci(FtxRxEngine *e) { return e->connected ? e->tci : NULL; }
 double      ftx_rx_engine_vfo_hz(FtxRxEngine *e)    { return e->tci ? ftx_tci_client_vfo_hz(e->tci) : 0.0; }
 gboolean    ftx_rx_engine_tx(FtxRxEngine *e)        { return e->tci ? ftx_tci_client_tx(e->tci) : FALSE; }
 const char *ftx_rx_engine_device(FtxRxEngine *e)    { return e->tci ? ftx_tci_client_device(e->tci) : ""; }

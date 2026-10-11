@@ -15,6 +15,7 @@
  * [4] crc [5] length in scalar samples [6] type (1 = RX audio) [7] channels */
 #define STREAM_HDR_BYTES   64
 #define STREAM_TYPE_RXAUD  1
+#define STREAM_TYPE_TXAUD  2
 #define STREAM_FMT_INT16   0
 #define STREAM_FMT_FLOAT   3
 
@@ -34,7 +35,7 @@ struct _FtxTciClient {
   GMutex   lock;              /* guards everything below                     */
   GCond    cond;
   gboolean up, ready, failed;
-  GQueue   out;               /* outgoing text commands (char*)              */
+  GQueue   out;               /* outgoing messages (struct outmsg*)          */
   double   vfo_hz;
   gboolean trx, tune;
   guint    rate_req, rate_ack;
@@ -54,12 +55,61 @@ struct _FtxTciClient {
   gboolean      started;
 };
 
-static void cli_queue(FtxTciClient *c, char *msg)
+/* one outgoing WebSocket message: text command or binary Stream block */
+struct outmsg {
+  guint8  *data;              /* LWS_PRE bytes of headroom, then the payload */
+  gsize    len;
+  gboolean binary;
+};
+
+static void outmsg_free(gpointer p)
 {
+  struct outmsg *m = p;
+  g_free(m->data);
+  g_free(m);
+}
+
+static void cli_queue_raw(FtxTciClient *c, const void *payload, gsize len, gboolean binary)
+{
+  struct outmsg *m = g_new0(struct outmsg, 1);
+  m->data = g_malloc(LWS_PRE + len);
+  memcpy(m->data + LWS_PRE, payload, len);
+  m->len = len;
+  m->binary = binary;
   g_mutex_lock(&c->lock);
-  g_queue_push_tail(&c->out, msg);
+  g_queue_push_tail(&c->out, m);
   g_mutex_unlock(&c->lock);
   if (c->ctx) lws_cancel_service(c->ctx);
+}
+
+/* text command; takes ownership of msg */
+static void cli_queue(FtxTciClient *c, char *msg)
+{
+  cli_queue_raw(c, msg, strlen(msg), FALSE);
+  g_free(msg);
+}
+
+void ftx_tci_client_send(FtxTciClient *c, const char *cmd)
+{
+  if (!c->thread) return;
+  cli_queue_raw(c, cmd, strlen(cmd), FALSE);
+}
+
+void ftx_tci_client_send_tx_audio(FtxTciClient *c, const float *mono, guint nframes, guint rate)
+{
+  if (!c->thread || nframes == 0) return;
+  gsize len = STREAM_HDR_BYTES + (gsize)nframes * sizeof(float);
+  guint8 *buf = g_malloc0(len);
+  guint32 h[16] = { 0 };
+  h[1] = rate;
+  h[2] = STREAM_FMT_FLOAT;
+  h[5] = nframes;
+  h[6] = STREAM_TYPE_TXAUD;
+  h[7] = 1;
+  memcpy(buf, h, sizeof h);
+  memcpy(buf + STREAM_HDR_BYTES, mono, (gsize)nframes * sizeof(float));
+  cli_queue_raw(c, buf, len, TRUE);
+  g_free(buf);
 }
 
 /* one complete "name:args" command (no ';') */
@@ -203,16 +253,12 @@ static int client_cb(struct lws *wsi, enum lws_callback_reasons reason, void *us
     return 0;
   case LWS_CALLBACK_CLIENT_WRITEABLE: {
     g_mutex_lock(&c->lock);
-    char *msg = g_queue_pop_head(&c->out);
+    struct outmsg *m = g_queue_pop_head(&c->out);
     gboolean more = !g_queue_is_empty(&c->out);
     g_mutex_unlock(&c->lock);
-    if (msg) {
-      size_t n = strlen(msg);
-      unsigned char *buf = g_malloc(LWS_PRE + n);
-      memcpy(buf + LWS_PRE, msg, n);
-      lws_write(wsi, buf + LWS_PRE, n, LWS_WRITE_TEXT);
-      g_free(buf);
-      g_free(msg);
+    if (m) {
+      lws_write(wsi, m->data + LWS_PRE, m->len, m->binary ? LWS_WRITE_BINARY : LWS_WRITE_TEXT);
+      outmsg_free(m);
     }
     if (more) lws_callback_on_writable(wsi);
     return 0;
@@ -296,8 +342,8 @@ void ftx_tci_client_free(FtxTciClient *c)
 {
   if (!c) return;
   ftx_tci_client_stop(c);
-  char *msg;
-  while ((msg = g_queue_pop_head(&c->out)) != NULL) g_free(msg);
+  struct outmsg *m;
+  while ((m = g_queue_pop_head(&c->out)) != NULL) outmsg_free(m);
   g_string_free(c->txt, TRUE);
   g_byte_array_free(c->bin, TRUE);
   g_free(c->mono);
@@ -405,6 +451,7 @@ void ftx_tci_client_stop(FtxTciClient *c)
 
 double ftx_tci_client_vfo_hz(FtxTciClient *c) { g_mutex_lock(&c->lock); double v = c->vfo_hz; g_mutex_unlock(&c->lock); return v; }
 gboolean ftx_tci_client_tx(FtxTciClient *c) { g_mutex_lock(&c->lock); gboolean v = c->trx || c->tune; g_mutex_unlock(&c->lock); return v; }
+gboolean ftx_tci_client_trx(FtxTciClient *c) { g_mutex_lock(&c->lock); gboolean v = c->trx; g_mutex_unlock(&c->lock); return v; }
 const char *ftx_tci_client_device(FtxTciClient *c) { return c->device; }
 const char *ftx_tci_client_protocol(FtxTciClient *c) { return c->protocol; }
 const char *ftx_tci_client_mode(FtxTciClient *c) { return c->mode; }

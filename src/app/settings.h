@@ -22,6 +22,8 @@ typedef struct {
   char     tci_host[64];
   int      tci_port;
   gboolean connect_at_start;
+  int      tx_level_pct;    /* TX audio level, % of full scale               */
+  gboolean check_mode;      /* refuse to key unless the radio is in DIGU/USB */
   /* [decoder] */
   int      depth;           /* 1..3                                         */
   gboolean ap;              /* a-priori decoding (incl. a7/a8)              */

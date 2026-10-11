@@ -11,14 +11,13 @@ TCI only.
 > decoders (candidate search, demodulation, LDPC/OSD, a-priori decoding,
 > multi-pass subtraction, WSJT-X's a7/a8 decodes) are ported from WSJT-X and
 > reproduce its decodes bit for bit on the reference recordings. The
-> `ftx-for-linux` window receives live from a TCI radio: labelled waterfall,
-> Band activity and Rx frequency lists, a QSO panel with the standard
-> messages and the WSJT-X auto-sequencer logic (it shows what it would send;
-> transmitting over TCI is the next phase). The transmit waveforms (message →
-> tones → GFSK exactly as WSJT-X sends it) are in the library. CLI tools:
-> `ftx-decode` (WAV files), `ftx-rx` (live, text), `ftx-record`. Not yet: TX
-> over TCI, logging to log-for-linux. Follow [docs/PORT-MAP.md](docs/PORT-MAP.md)
-> for the module list.
+> `ftx-for-linux` window works a TCI radio: labelled waterfall, Band activity
+> and Rx frequency lists, a QSO panel with the WSJT-X auto-sequencer, and
+> transmitting over TCI (the FT8/FT4 waveform exactly as WSJT-X sends it,
+> streamed as TX audio with WSJT-X's timing; Tune tone). CLI tools:
+> `ftx-decode` (WAV files), `ftx-rx` (live, text), `ftx-record`. Not yet:
+> logging to log-for-linux. Follow [docs/PORT-MAP.md](docs/PORT-MAP.md) for
+> the module list.
 
 ## Provenance
 
@@ -46,8 +45,10 @@ this program are licensed under the GNU GPL v3 (or later); see
   `-5` selects FT4 (7.5 s files), `-c MYCALL -x HISCALL` enable a-priori
   decoding, `-d 1..3` sets the depth.
 - `src/app/` — the GLib layer above the core (no GTK): TCI client (RX audio
-  from sdr-for-linux / icom-for-linux), UTC-aligned period assembly, the live
-  RX engine (decoder thread, waterfall spectrum), the standard messages and
+  from sdr-for-linux / icom-for-linux, commands and TX audio to it),
+  UTC-aligned period assembly, the live RX engine (decoder thread, waterfall
+  spectrum), the TX engine (keying with `trx:0,true,tci`, the 48 kHz
+  waveform paced in real time, Tune), the standard messages and
   decoded-text helpers ported from WSJT-X's `mainwindow.cpp`/`decodedtext.cpp`,
   settings (`~/.config/ftx-for-linux/config.ini`).
 - `src/ui/` — the GTK4/libadwaita application `ftx-for-linux`: header bar

@@ -58,7 +58,7 @@ static void action(GtkWidget *w, gpointer user)
 {
   FtxQsoPanel *p = user;
   int a = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(w), "action"));
-  if (a == FTX_QSO_ACTION_ENABLE_TX && p->updating) return;
+  if ((a == FTX_QSO_ACTION_ENABLE_TX || a == FTX_QSO_ACTION_TUNE) && p->updating) return;
   g_signal_emit(p, signals[SIG_ACTION], 0, a);
 }
 
@@ -225,7 +225,10 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   g_object_set_data(G_OBJECT(p->enable), "action", GINT_TO_POINTER(FTX_QSO_ACTION_ENABLE_TX));
   g_signal_connect(p->enable, "toggled", G_CALLBACK(action), p);
   p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, "destructive-action");
-  p->tune = button(p, "Tune", FTX_QSO_ACTION_TUNE, NULL);
+  p->tune = gtk_toggle_button_new_with_label("Tune");
+  gtk_widget_set_tooltip_text(p->tune, "A steady tone at the Tx frequency while on");
+  g_object_set_data(G_OBJECT(p->tune), "action", GINT_TO_POINTER(FTX_QSO_ACTION_TUNE));
+  g_signal_connect(p->tune, "toggled", G_CALLBACK(action), p);
   p->cq = button(p, "Call CQ", FTX_QSO_ACTION_CALL_CQ, NULL);
   gtk_box_append(GTK_BOX(btns), p->enable);
   gtk_box_append(GTK_BOX(btns), p->halt);
@@ -320,13 +323,22 @@ gboolean ftx_qso_panel_get_auto_seq(FtxQsoPanel *p) { return gtk_switch_get_acti
 void ftx_qso_panel_set_tx_enabled(FtxQsoPanel *p, gboolean v) { p->updating++; gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(p->enable), v); p->updating--; }
 gboolean ftx_qso_panel_get_tx_enabled(FtxQsoPanel *p) { return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(p->enable)); }
 
+void ftx_qso_panel_set_tune(FtxQsoPanel *p, gboolean v) { p->updating++; gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(p->tune), v); p->updating--; }
+gboolean ftx_qso_panel_get_tune(FtxQsoPanel *p) { return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(p->tune)); }
+
 void ftx_qso_panel_set_tx_available(FtxQsoPanel *p, gboolean available, const char *why)
 {
-  GtkWidget *w[] = { p->enable, p->halt, p->tune, p->log };
+  GtkWidget *w[] = { p->enable, p->halt, p->tune };
   for (gsize i = 0; i < G_N_ELEMENTS(w); i++) {
     gtk_widget_set_sensitive(w[i], available);
-    gtk_widget_set_tooltip_text(w[i], available ? NULL : why);
+    gtk_widget_set_tooltip_text(w[i], available ? (w[i] == p->tune ? "A steady tone at the Tx frequency while on" : NULL) : why);
   }
+}
+
+void ftx_qso_panel_set_log_available(FtxQsoPanel *p, gboolean available, const char *why)
+{
+  gtk_widget_set_sensitive(p->log, available);
+  gtk_widget_set_tooltip_text(p->log, available ? NULL : why);
 }
 
 static void ftx_qso_panel_dispose(GObject *obj)

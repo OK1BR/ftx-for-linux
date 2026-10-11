@@ -149,6 +149,9 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   entry(c, g, "Host", s->tci_host, sizeof s->tci_host);
   spin(c, g, "Port", NULL, 1, 65535, 1, 0, &s->tci_port, NULL);
   sw(c, g, "Connect at start", NULL, &s->connect_at_start);
+  g = group(p, "Transmit", "FTX keys the radio with trx over TCI and streams the FT8/FT4 audio (48 kHz) as the TX source.");
+  spin(c, g, "TX audio level", "% of full scale; the radio's drive sets the power", 10, 100, 5, 0, &s->tx_level_pct, NULL);
+  sw(c, g, "Check the mode before keying", "refuse to transmit unless the radio reports DIGU or USB", &s->check_mode);
 
   p = page(pd, "Decoder", "decoder", "system-run-symbolic");
   g = group(p, "Decoding", "The WSJT-X 3.0.2 algorithms, ported.  Depth 3 is what jt9 -d 3 does.");

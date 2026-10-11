@@ -1,4 +1,5 @@
-/* tci_client.h — TCI (ExpertSDR protocol) WebSocket client for RX audio.
+/* tci_client.h — TCI (ExpertSDR protocol) WebSocket client: RX audio in,
+ * commands and TX audio out.
  *
  * Connects to a TCI server (sdr-for-linux, icom-for-linux: ws://host:40001),
  * waits for the init block (ready;), subscribes to receiver 0's audio at a
@@ -44,8 +45,15 @@ void ftx_tci_client_set_closed_cb(FtxTciClient *c, FtxTciClosedCb cb, gpointer u
 gboolean ftx_tci_client_start(FtxTciClient *c, guint rate, GError **error);
 void     ftx_tci_client_stop(FtxTciClient *c);
 
+/* Send a text command, e.g. "trx:0,true,tci;" (any thread). */
+void ftx_tci_client_send(FtxTciClient *c, const char *cmd);
+/* Send one TX audio Stream block (type 2): nframes mono float32 samples at
+ * rate Hz (sdr-for-linux upsamples naively, so send 48000).  Any thread. */
+void ftx_tci_client_send_tx_audio(FtxTciClient *c, const float *mono, guint nframes, guint rate);
+
 double      ftx_tci_client_vfo_hz(FtxTciClient *c);
-gboolean    ftx_tci_client_tx(FtxTciClient *c);
+gboolean    ftx_tci_client_tx(FtxTciClient *c);       /* trx OR tune        */
+gboolean    ftx_tci_client_trx(FtxTciClient *c);
 const char *ftx_tci_client_device(FtxTciClient *c);
 const char *ftx_tci_client_protocol(FtxTciClient *c);
 const char *ftx_tci_client_mode(FtxTciClient *c);     /* modulation:0,<mode> */

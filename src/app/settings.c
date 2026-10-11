@@ -19,6 +19,7 @@ static const struct key {
   K("station", "watchdog_min", T_INT, watchdog_min),
   K("radio", "tci_host", T_STR, tci_host), K("radio", "tci_port", T_INT, tci_port),
   K("radio", "connect_at_start", T_BOOL, connect_at_start),
+  K("radio", "tx_level_pct", T_INT, tx_level_pct), K("radio", "check_mode", T_BOOL, check_mode),
   K("decoder", "depth", T_INT, depth), K("decoder", "ap", T_BOOL, ap),
   K("decoder", "nfa", T_INT, nfa), K("decoder", "nfb", T_INT, nfb),
   K("decoder", "clock_warn_dt", T_DOUBLE, clock_warn_dt), K("decoder", "show_dt_health", T_BOOL, show_dt_health),
@@ -40,6 +41,7 @@ void ftx_settings_defaults(FtxSettings *s)
   memset(s, 0, sizeof *s);
   s->skip_tx1 = FALSE; s->rr73 = TRUE; s->watchdog_min = 6;
   g_strlcpy(s->tci_host, "127.0.0.1", sizeof s->tci_host); s->tci_port = 40001; s->connect_at_start = TRUE;
+  s->tx_level_pct = 90; s->check_mode = TRUE;
   s->depth = 3; s->ap = TRUE; s->nfa = 200; s->nfb = 4000; s->clock_warn_dt = 0.5; s->show_dt_health = TRUE;
   s->palette = 0; s->rows_per_s = 4; s->wf_labels = TRUE;
   s->hl_cq = TRUE; s->dim_b4 = TRUE; s->keep_periods = 20;
