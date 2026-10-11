@@ -38,6 +38,7 @@ GtkWidget *ftx_qso_panel_new(void);
 void        ftx_qso_panel_set_dx(FtxQsoPanel *p, const char *call, const char *grid);
 const char *ftx_qso_panel_get_dx_call(FtxQsoPanel *p);
 const char *ftx_qso_panel_get_dx_grid(FtxQsoPanel *p);
+/* The report to send (the partner's SNR) is shown, not edited. */
 void        ftx_qso_panel_set_report(FtxQsoPanel *p, int report);
 int         ftx_qso_panel_get_report(FtxQsoPanel *p);
 void        ftx_qso_panel_set_received(FtxQsoPanel *p, const char *text);
@@ -66,7 +67,7 @@ gboolean    ftx_qso_panel_get_tune(FtxQsoPanel *p);
 void        ftx_qso_panel_set_tx_available(FtxQsoPanel *p, gboolean available, const char *why);
 void        ftx_qso_panel_set_log_available(FtxQsoPanel *p, gboolean available, const char *why);
 
-/* Signals: "changed" (any editable field: DX call/grid, report, next message,
+/* Signals: "changed" (any editable field: DX call/grid, next message,
  * Tx frequency, Hold, Tx=Rx, Auto sequence) and "action" (gint FtxQsoAction). */
 
 G_END_DECLS

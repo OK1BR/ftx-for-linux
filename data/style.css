@@ -41,4 +41,3 @@ button.txkey:checked { background: #c8321e; color: #fff; }
 .status.tx { color: #ff9a8a; }
 .status.err { color: #ff6b6b; font-weight: 700; }
 .status.dim { opacity: 0.5; }
-button.mode:checked { background: #1d6fa5; color: #fff; }

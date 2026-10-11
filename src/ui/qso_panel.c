@@ -10,6 +10,7 @@ struct _FtxQsoPanel {
   GtkWidget parent_instance;
   GtkWidget *box;
   GtkWidget *dx_call, *dx_grid, *report, *received;
+  int report_db;
   GtkWidget *call_lab, *info_lab;
   GtkWidget *txgroup, *badge, *card_state, *card_msg, *card_menu;
   GtkWidget *enable, *halt, *tune, *cq, *auto_sw;
@@ -221,10 +222,10 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_box_append(GTK_BOX(q1), p->call_lab);
   gtk_box_append(GTK_BOX(q1), p->info_lab);
   GtkWidget *q2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-  p->report = gtk_spin_button_new_with_range(-50, 49, 1);
-  gtk_widget_add_css_class(p->report, "mono");
-  gtk_editable_set_width_chars(GTK_EDITABLE(p->report), 3);
-  g_signal_connect(p->report, "value-changed", G_CALLBACK(on_any_changed), p);
+  /* the report to send is informative only: it is the partner's SNR from the
+   * decoder and is never corrected by hand (Richard 2026-10-11) */
+  p->report = gtk_label_new("—");
+  gtk_widget_add_css_class(p->report, "rcvd");
   p->received = gtk_label_new("—");
   gtk_widget_add_css_class(p->received, "rcvd");
   gtk_box_append(GTK_BOX(q2), caption("Report to send"));
@@ -282,6 +283,7 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   g_object_set_data(G_OBJECT(p->enable), "action", GINT_TO_POINTER(FTX_QSO_ACTION_ENABLE_TX));
   g_signal_connect(p->enable, "toggled", G_CALLBACK(action), p);
   p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, "destructive-action");
+  gtk_widget_set_tooltip_text(p->halt, "Stop transmitting and disable TX (Esc)");
   p->tune = gtk_toggle_button_new_with_label("Tune");
   gtk_widget_set_tooltip_text(p->tune, "A steady tone at the Tx frequency while on");
   g_object_set_data(G_OBJECT(p->tune), "action", GINT_TO_POINTER(FTX_QSO_ACTION_TUNE));
@@ -324,8 +326,14 @@ void ftx_qso_panel_set_dx(FtxQsoPanel *p, const char *call, const char *grid)
 }
 const char *ftx_qso_panel_get_dx_call(FtxQsoPanel *p) { return gtk_editable_get_text(GTK_EDITABLE(p->dx_call)); }
 const char *ftx_qso_panel_get_dx_grid(FtxQsoPanel *p) { return gtk_editable_get_text(GTK_EDITABLE(p->dx_grid)); }
-void ftx_qso_panel_set_report(FtxQsoPanel *p, int r) { p->updating++; gtk_spin_button_set_value(GTK_SPIN_BUTTON(p->report), r); p->updating--; }
-int  ftx_qso_panel_get_report(FtxQsoPanel *p) { return gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(p->report)); }
+void ftx_qso_panel_set_report(FtxQsoPanel *p, int r)
+{
+  char t[8];
+  p->report_db = CLAMP(r, -50, 49);
+  snprintf(t, sizeof t, "%+d", p->report_db);
+  gtk_label_set_text(GTK_LABEL(p->report), t);
+}
+int  ftx_qso_panel_get_report(FtxQsoPanel *p) { return p->report_db; }
 void ftx_qso_panel_set_received(FtxQsoPanel *p, const char *t) { gtk_label_set_text(GTK_LABEL(p->received), t && t[0] ? t : "—"); }
 void ftx_qso_panel_set_info(FtxQsoPanel *p, const char *t)
 {
@@ -396,7 +404,8 @@ void ftx_qso_panel_set_tx_available(FtxQsoPanel *p, gboolean available, const ch
   GtkWidget *w[] = { p->enable, p->halt, p->tune };
   for (gsize i = 0; i < G_N_ELEMENTS(w); i++) {
     gtk_widget_set_sensitive(w[i], available);
-    gtk_widget_set_tooltip_text(w[i], available ? (w[i] == p->tune ? "A steady tone at the Tx frequency while on" : NULL) : why);
+    gtk_widget_set_tooltip_text(w[i], available ? (w[i] == p->tune ? "A steady tone at the Tx frequency while on"
+                                                 : w[i] == p->halt ? "Stop transmitting and disable TX (Esc)" : NULL) : why);
   }
 }
 

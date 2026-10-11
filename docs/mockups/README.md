@@ -67,6 +67,13 @@ Unchanged as decided before: one column, no spectrum strip, Tx1–Tx6 in the
 popover, the partner as text, the family palettes, labels without the `CQ`
 prefix.
 
+*Tuned right after the build (Richard, 2026-10-11, not in the mockup PNGs):*
+the header carries icons as sdr-for-linux and skimmer-for-linux do — the
+Monitor toggle is the TCI icon, FT8/FT4 is a compact dropdown — instead of
+the text toggles ("v té horní liště by měly být ikony jako v sdr"); the
+report to send is shown, not edited ("v reálném provozu ho stejně nikdy
+neopravuji"); Esc = Halt TX anywhere in the window.
+
 ## Design decisions
 
 **libadwaita, dark, one window.** Same shape as the rest of the family

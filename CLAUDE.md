@@ -315,3 +315,12 @@ width), tags right after the text, pane header notes (`ftx_decode_list_set_note`
 headless against the mock in his geometry and theme: idle, double-click →
 HA0DU KN07 · 7210 km · 48°, Enable TX → ARMED then ON AIR with the red line
 and the Tx row, Halt, the popover.  79 gates green.
+Tuned minutes later from Richard's first look: the header carries icons as
+the family does (Monitor = `network-transmit-receive-symbolic` toggle, FT8/FT4
+= a GtkDropDown; "v té horní liště by měly být ikony jako v sdr"); the report
+to send is a read-only label ("v reálném provozu ho stejně nikdy
+neopravuji"); Esc = Halt TX via a key controller on the window, bubble phase
+so an open dialog or popover takes the Esc first ("halt tx tlačítko musí
+reagovat na ESC klávesu").  Verified headless: double-click → report −14 shown,
+Enable TX → ON AIR, Esc → RX with the "Halt TX" toast.
+

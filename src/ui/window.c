@@ -31,7 +31,7 @@ struct _FtxWindow {
   FtxTxEngine    *tx;
   ftx_pack77_ctx *pc;
 
-  GtkWidget *toasts, *dial, *modelab, *title, *ft8_btn, *ft4_btn, *monitor_btn, *paned, *lists, *line;
+  GtkWidget *toasts, *dial, *modelab, *title, *mode_dd, *monitor_btn, *paned, *lists, *line;
   FtxWaterfall  *wf;
   FtxDecodeList *band, *rxl;
   FtxQsoPanel   *qso;
@@ -407,6 +407,20 @@ static void halt_tx(FtxWindow *win)
   win->tuning = FALSE;
   ftx_qso_panel_set_tune(win->qso, FALSE);
   disable_tx(win);
+}
+
+/* Esc = Halt TX anywhere in the window (Richard 2026-10-11: "halt tx tlačítko
+ * musí reagovat na ESC klávesu").  Bubble phase, so a dialog or popover that
+ * is open takes the Esc for itself first and closes. */
+static gboolean on_key(GtkEventControllerKey *c, guint keyval, guint keycode, GdkModifierType state, gpointer user)
+{
+  (void)c; (void)keycode; (void)state;
+  FtxWindow *win = user;
+  if (keyval != GDK_KEY_Escape) return FALSE;
+  gboolean was_active = win->tx_enabled || win->transmitting || win->tuning;
+  halt_tx(win);
+  if (was_active) toast(win, "Halt TX");
+  return TRUE;
 }
 
 static gboolean tick(gpointer data)
@@ -870,11 +884,11 @@ static void apply_mode(FtxWindow *win)
   update_card(win);
 }
 
-static void on_mode(GtkToggleButton *b, gpointer user)
+static void on_mode(GObject *dd, GParamSpec *ps, gpointer user)
 {
+  (void)ps;
   FtxWindow *win = user;
-  if (!gtk_toggle_button_get_active(b)) return;
-  win->s->ft4 = (GTK_WIDGET(b) == win->ft4_btn);
+  win->s->ft4 = gtk_drop_down_get_selected(GTK_DROP_DOWN(dd)) == 1;
   apply_mode(win);
 }
 
@@ -1070,13 +1084,6 @@ static void ftx_window_class_init(FtxWindowClass *klass)
 
 static void ftx_window_init(FtxWindow *win) { (void)win; }
 
-static GtkWidget *mode_button(const char *label)
-{
-  GtkWidget *b = gtk_toggle_button_new_with_label(label);
-  gtk_widget_add_css_class(b, "mode");
-  return b;
-}
-
 GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
 {
   FtxWindow *win = g_object_new(FTX_TYPE_WINDOW, "application", app, NULL);
@@ -1100,6 +1107,11 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   gtk_window_set_default_size(GTK_WINDOW(win), s->win_w > 0 ? s->win_w : 1180, s->win_h > 0 ? s->win_h : 960);
   if (s->win_max) gtk_window_maximize(GTK_WINDOW(win));
   g_signal_connect(win, "close-request", G_CALLBACK(on_close_request), NULL);
+  {
+    GtkEventController *keys = gtk_event_controller_key_new();
+    g_signal_connect(keys, "key-pressed", G_CALLBACK(on_key), win);
+    gtk_widget_add_controller(GTK_WIDGET(win), keys);
+  }
 
   /* actions */
   const GActionEntry entries[] = {
@@ -1131,21 +1143,20 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(mb), G_MENU_MODEL(menu));
   g_object_unref(menu);
   adw_header_bar_pack_end(ADW_HEADER_BAR(hdr), mb);
-  GtkWidget *modes = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_widget_add_css_class(modes, "linked");
-  win->ft8_btn = mode_button("FT8");
-  win->ft4_btn = mode_button("FT4");
-  gtk_toggle_button_set_group(GTK_TOGGLE_BUTTON(win->ft4_btn), GTK_TOGGLE_BUTTON(win->ft8_btn));
-  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(s->ft4 ? win->ft4_btn : win->ft8_btn), TRUE);
-  g_signal_connect(win->ft8_btn, "toggled", G_CALLBACK(on_mode), win);
-  g_signal_connect(win->ft4_btn, "toggled", G_CALLBACK(on_mode), win);
-  gtk_box_append(GTK_BOX(modes), win->ft8_btn);
-  gtk_box_append(GTK_BOX(modes), win->ft4_btn);
-  adw_header_bar_pack_end(ADW_HEADER_BAR(hdr), modes);
-  win->monitor_btn = mode_button("Monitor");
-  gtk_widget_set_tooltip_text(win->monitor_btn, "Receive: connect to the TCI server and decode");
+  /* the family header (sdr-for-linux, skimmer-for-linux): icon buttons with
+   * tooltips, the menu last; pack_end packs right to left (Richard 2026-10-11:
+   * "v té horní liště by měly být ikony jako v sdr") */
+  win->monitor_btn = gtk_toggle_button_new();
+  gtk_button_set_icon_name(GTK_BUTTON(win->monitor_btn), "network-transmit-receive-symbolic");
+  gtk_widget_set_tooltip_text(win->monitor_btn, "Monitor: connect to the TCI server and decode");
   g_signal_connect(win->monitor_btn, "toggled", G_CALLBACK(on_monitor), win);
   adw_header_bar_pack_end(ADW_HEADER_BAR(hdr), win->monitor_btn);
+  win->mode_dd = gtk_drop_down_new_from_strings((const char *[]){ "FT8", "FT4", NULL });
+  gtk_drop_down_set_selected(GTK_DROP_DOWN(win->mode_dd), s->ft4 ? 1 : 0);
+  gtk_widget_set_tooltip_text(win->mode_dd, "Mode");
+  gtk_widget_set_valign(win->mode_dd, GTK_ALIGN_CENTER);
+  g_signal_connect(win->mode_dd, "notify::selected", G_CALLBACK(on_mode), win);
+  adw_header_bar_pack_end(ADW_HEADER_BAR(hdr), win->mode_dd);
 
   /* waterfall over the lower panes */
   win->wf = FTX_WATERFALL(ftx_waterfall_new());
