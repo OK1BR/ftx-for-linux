@@ -72,6 +72,7 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *d)
   GtkWidget *lab = gtk_label_new(buf);
   gtk_label_set_xalign(GTK_LABEL(lab), 0);
   gtk_label_set_single_line_mode(GTK_LABEL(lab), TRUE);
+  gtk_label_set_ellipsize(GTK_LABEL(lab), PANGO_ELLIPSIZE_END);   /* the panes share the width; long lines shorten, the window need not grow */
   gtk_widget_add_css_class(lab, "mono");
   gtk_widget_set_hexpand(lab, TRUE);
   gtk_box_append(GTK_BOX(box), lab);
@@ -148,6 +149,7 @@ static void ftx_decode_list_init(FtxDecodeList *l)
   g_object_set_data(G_OBJECT(l), "title", title);
   GtkWidget *cols = gtk_label_new("UTC     dB   DT  Freq  Message");
   gtk_label_set_xalign(GTK_LABEL(cols), 0);
+  gtk_label_set_ellipsize(GTK_LABEL(cols), PANGO_ELLIPSIZE_END);
   gtk_widget_add_css_class(cols, "mono");
   gtk_widget_add_css_class(cols, "dim");
   gtk_widget_add_css_class(cols, "colhdr");

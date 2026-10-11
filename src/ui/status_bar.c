@@ -26,6 +26,7 @@ static GtkWidget *item(GtkWidget *box, const char *text)
 {
   GtkWidget *l = gtk_label_new(text);
   gtk_widget_add_css_class(l, "status");
+  gtk_label_set_ellipsize(GTK_LABEL(l), PANGO_ELLIPSIZE_END);
   gtk_box_append(GTK_BOX(box), l);
   return l;
 }

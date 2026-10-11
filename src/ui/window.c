@@ -1056,7 +1056,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   win->tx_period_idx = -1;
 
   gtk_window_set_title(GTK_WINDOW(win), "FTX for Linux");
-  gtk_window_set_default_size(GTK_WINDOW(win), s->win_w > 0 ? s->win_w : 1480, s->win_h > 0 ? s->win_h : 920);
+  gtk_window_set_default_size(GTK_WINDOW(win), s->win_w > 0 ? s->win_w : 1180, s->win_h > 0 ? s->win_h : 960);
   if (s->win_max) gtk_window_maximize(GTK_WINDOW(win));
   g_signal_connect(win, "close-request", G_CALLBACK(on_close_request), NULL);
 
@@ -1110,7 +1110,9 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   win->wf = FTX_WATERFALL(ftx_waterfall_new());
   g_signal_connect(win->wf, "rx-clicked", G_CALLBACK(on_rx_clicked), win);
   g_signal_connect(win->wf, "tx-clicked", G_CALLBACK(on_tx_clicked), win);
-  GtkWidget *lower = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  /* one column: the controls under the waterfall, the two lists beneath */
+  GtkWidget *lower = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  GtkWidget *lists = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   win->band = FTX_DECODE_LIST(ftx_decode_list_new("Band activity"));
   win->rxl = FTX_DECODE_LIST(ftx_decode_list_new("Rx frequency"));
   gtk_widget_set_hexpand(GTK_WIDGET(win->band), TRUE);
@@ -1120,11 +1122,13 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   win->qso = FTX_QSO_PANEL(ftx_qso_panel_new());
   g_signal_connect(win->qso, "changed", G_CALLBACK(on_qso_changed), win);
   g_signal_connect(win->qso, "action", G_CALLBACK(on_qso_action), win);
-  gtk_box_append(GTK_BOX(lower), GTK_WIDGET(win->band));
-  gtk_box_append(GTK_BOX(lower), gtk_separator_new(GTK_ORIENTATION_VERTICAL));
-  gtk_box_append(GTK_BOX(lower), GTK_WIDGET(win->rxl));
-  gtk_box_append(GTK_BOX(lower), gtk_separator_new(GTK_ORIENTATION_VERTICAL));
+  gtk_box_append(GTK_BOX(lists), GTK_WIDGET(win->band));
+  gtk_box_append(GTK_BOX(lists), gtk_separator_new(GTK_ORIENTATION_VERTICAL));
+  gtk_box_append(GTK_BOX(lists), GTK_WIDGET(win->rxl));
+  gtk_widget_set_vexpand(lists, TRUE);
   gtk_box_append(GTK_BOX(lower), GTK_WIDGET(win->qso));
+  gtk_box_append(GTK_BOX(lower), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
+  gtk_box_append(GTK_BOX(lower), lists);
   win->paned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
   gtk_paned_set_start_child(GTK_PANED(win->paned), GTK_WIDGET(win->wf));
   gtk_paned_set_end_child(GTK_PANED(win->paned), lower);

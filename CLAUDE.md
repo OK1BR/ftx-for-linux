@@ -232,6 +232,10 @@ strip above the waterfall is gone ("spektrum dej pryč úplně, nech tam jen
 vodopád"), only the frequency axis and the rows remain; 8 rows/s default,
 1–10 selectable (the spectrum FFT hops 1024 samples, up to ~11 rows/s; the
 hop once kept the wrong sample count — fixed when 8 rows/s showed as 4).
+Layout changed to one column (Richard: three columns side by side were not
+ergonomic, the window too wide): the controls strip directly under the
+waterfall (two rows), the two decode panes side by side beneath it; decode
+lines and status items ellipsize, default window 1180×960.
 Decodes carry jt9's AP marks (aN, "?") in the lists, the labels and ALL.TXT
 (two false "OK1BR … R MJ61"-style AP decodes on the air prompted it).
 

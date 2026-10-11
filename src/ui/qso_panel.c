@@ -7,7 +7,7 @@
 
 struct _FtxQsoPanel {
   GtkWidget parent_instance;
-  GtkWidget *scroller, *box;
+  GtkWidget *box;
   GtkWidget *dx_call, *dx_grid, *report, *received, *info;
   GtkWidget *card, *card_state, *card_msg, *card_menu;
   GtkWidget *enable, *halt, *tune, *cq, *auto_sw;
@@ -99,18 +99,17 @@ static GtkWidget *button(FtxQsoPanel *p, const char *label, FtxQsoAction a, cons
 
 static void ftx_qso_panel_init(FtxQsoPanel *p)
 {
-  /* the panel scrolls vertically when the window is too low for all of it */
-  p->scroller = gtk_scrolled_window_new();
-  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(p->scroller), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-  gtk_widget_set_parent(p->scroller, GTK_WIDGET(p));
-  p->box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  /* Full-width strip under the waterfall (Richard 2026-10-11: one column —
+   * controls under the waterfall, the two decode lists beneath them):
+   * row A = the partner and the Tx frequency, row B = the card and the
+   * TX buttons. */
+  p->box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
   gtk_widget_add_css_class(p->box, "qso");
-  gtk_widget_set_size_request(p->box, 380, -1);
-  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(p->scroller), p->box);
+  gtk_widget_set_parent(p->box, GTK_WIDGET(p));
 
-  /* partner */
+  /* row A: partner · what we know about him · Tx frequency · Log QSO */
   GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-  p->dx_call = mono_entry(11);
+  p->dx_call = mono_entry(10);
   g_signal_connect(p->dx_call, "activate", G_CALLBACK(on_call_commit), p);
   GtkEventController *fc = gtk_event_controller_focus_new();
   g_signal_connect(fc, "leave", G_CALLBACK(on_focus_leave), p);
@@ -130,22 +129,29 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_widget_add_css_class(p->received, "mono");
   gtk_widget_set_valign(p->received, GTK_ALIGN_END);
   gtk_box_append(GTK_BOX(row), field("Received", p->received));
-  gtk_box_append(GTK_BOX(p->box), row);
   p->info = gtk_label_new("");
   gtk_widget_add_css_class(p->info, "dim");
   gtk_label_set_xalign(GTK_LABEL(p->info), 0);
-  gtk_label_set_wrap(GTK_LABEL(p->info), TRUE);
-  gtk_box_append(GTK_BOX(p->box), p->info);
+  gtk_label_set_ellipsize(GTK_LABEL(p->info), PANGO_ELLIPSIZE_END);
+  gtk_widget_set_hexpand(p->info, TRUE);
+  gtk_widget_set_valign(p->info, GTK_ALIGN_END);
+  gtk_widget_set_margin_bottom(p->info, 8);
+  gtk_box_append(GTK_BOX(row), p->info);
+  p->log = button(p, "Log QSO", FTX_QSO_ACTION_LOG_QSO, "suggested-action");
+  gtk_widget_set_tooltip_text(p->log, "Log the QSO to log-for-linux");
+  gtk_widget_set_valign(p->log, GTK_ALIGN_END);
+  gtk_box_append(GTK_BOX(row), p->log);
+  gtk_box_append(GTK_BOX(p->box), row);
 
-  /* the card: what is on the air or goes out next; its TxN button opens the
-   * override popover with the six standard messages and the Auto sequence
-   * switch (the sequencer picks the message — the list is not something to
-   * look at all the time, Richard 2026-10-11) */
+  /* row B: the card (with the override popover) and the TX buttons */
+  GtkWidget *rowb = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   p->card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
   gtk_widget_add_css_class(p->card, "nextcard");
+  gtk_widget_set_hexpand(p->card, TRUE);
   p->card_state = gtk_label_new("");
   gtk_widget_add_css_class(p->card_state, "dim");
   gtk_label_set_xalign(GTK_LABEL(p->card_state), 0);
+  gtk_label_set_ellipsize(GTK_LABEL(p->card_state), PANGO_ELLIPSIZE_END);
   GtkWidget *nh = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   p->card_msg = gtk_label_new("");
   gtk_widget_add_css_class(p->card_msg, "nextmsg");
@@ -215,13 +221,31 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_box_append(GTK_BOX(nh), p->card_menu);
   gtk_box_append(GTK_BOX(p->card), p->card_state);
   gtk_box_append(GTK_BOX(p->card), nh);
-  gtk_box_append(GTK_BOX(p->box), p->card);
+  gtk_box_append(GTK_BOX(rowb), p->card);
 
-  /* TX controls */
+  GtkWidget *fbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  gtk_widget_set_valign(fbox, GTK_ALIGN_CENTER);
+  p->tx_hz = gtk_spin_button_new_with_range(200, 5000, 1);
+  gtk_widget_add_css_class(p->tx_hz, "mono");
+  gtk_widget_set_tooltip_text(p->tx_hz, "Tx frequency (Hz)");
+  g_signal_connect(p->tx_hz, "value-changed", G_CALLBACK(on_any_changed), p);
+  gtk_box_append(GTK_BOX(fbox), field("Tx frequency", p->tx_hz));
+  GtkWidget *checks = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_widget_set_valign(checks, GTK_ALIGN_END);
+  p->hold = gtk_check_button_new_with_label("Hold");
+  gtk_widget_set_tooltip_text(p->hold, "Keep the Tx frequency when answering a station");
+  g_signal_connect(p->hold, "toggled", G_CALLBACK(on_any_changed), p);
+  p->tx_eq_rx = gtk_check_button_new_with_label("Tx = Rx");
+  g_signal_connect(p->tx_eq_rx, "toggled", G_CALLBACK(on_any_changed), p);
+  gtk_box_append(GTK_BOX(checks), p->hold);
+  gtk_box_append(GTK_BOX(checks), p->tx_eq_rx);
+  gtk_box_append(GTK_BOX(fbox), checks);
+  gtk_box_append(GTK_BOX(rowb), fbox);
+
   GtkWidget *btns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  gtk_widget_set_valign(btns, GTK_ALIGN_CENTER);
   p->enable = gtk_toggle_button_new_with_label("Enable TX");
   gtk_widget_add_css_class(p->enable, "txkey");
-  gtk_widget_set_hexpand(p->enable, TRUE);
   g_object_set_data(G_OBJECT(p->enable), "action", GINT_TO_POINTER(FTX_QSO_ACTION_ENABLE_TX));
   g_signal_connect(p->enable, "toggled", G_CALLBACK(action), p);
   p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, "destructive-action");
@@ -234,30 +258,8 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_box_append(GTK_BOX(btns), p->halt);
   gtk_box_append(GTK_BOX(btns), p->tune);
   gtk_box_append(GTK_BOX(btns), p->cq);
-  gtk_box_append(GTK_BOX(p->box), btns);
-
-  /* Tx frequency, Hold, Tx = Rx, Log QSO */
-  GtkWidget *fr = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-  GtkWidget *fl = gtk_label_new("Tx frequency");
-  gtk_widget_add_css_class(fl, "dim");
-  p->tx_hz = gtk_spin_button_new_with_range(200, 5000, 1);
-  gtk_widget_add_css_class(p->tx_hz, "mono");
-  g_signal_connect(p->tx_hz, "value-changed", G_CALLBACK(on_any_changed), p);
-  p->hold = gtk_check_button_new_with_label("Hold");
-  gtk_widget_set_tooltip_text(p->hold, "Keep the Tx frequency when answering a station");
-  g_signal_connect(p->hold, "toggled", G_CALLBACK(on_any_changed), p);
-  p->tx_eq_rx = gtk_check_button_new_with_label("Tx = Rx");
-  g_signal_connect(p->tx_eq_rx, "toggled", G_CALLBACK(on_any_changed), p);
-  GtkWidget *sp = gtk_label_new("");
-  gtk_widget_set_hexpand(sp, TRUE);
-  p->log = button(p, "Log QSO  →  log-for-linux", FTX_QSO_ACTION_LOG_QSO, "suggested-action");
-  gtk_box_append(GTK_BOX(fr), fl);
-  gtk_box_append(GTK_BOX(fr), p->tx_hz);
-  gtk_box_append(GTK_BOX(fr), p->hold);
-  gtk_box_append(GTK_BOX(fr), p->tx_eq_rx);
-  gtk_box_append(GTK_BOX(fr), sp);
-  gtk_box_append(GTK_BOX(fr), p->log);
-  gtk_box_append(GTK_BOX(p->box), fr);
+  gtk_box_append(GTK_BOX(rowb), btns);
+  gtk_box_append(GTK_BOX(p->box), rowb);
 }
 
 /* ---- API ------------------------------------------------------------------ */
@@ -344,7 +346,7 @@ void ftx_qso_panel_set_log_available(FtxQsoPanel *p, gboolean available, const c
 static void ftx_qso_panel_dispose(GObject *obj)
 {
   FtxQsoPanel *p = FTX_QSO_PANEL(obj);
-  g_clear_pointer(&p->scroller, gtk_widget_unparent);
+  g_clear_pointer(&p->box, gtk_widget_unparent);
   G_OBJECT_CLASS(ftx_qso_panel_parent_class)->dispose(obj);
 }
 

@@ -22,7 +22,7 @@
 .tag-me { background: rgba(255,140,30,0.5); }
 .tag-now { background: #c8321e; color: #fff; }
 .tag-next { background: #1d6fa5; color: #fff; }
-.qso { padding: 10px 12px 10px 6px; }
+.qso { padding: 8px 12px 8px 12px; }
 .nextcard { padding: 8px 12px; border-radius: 8px; background: rgba(29,111,165,0.18); border: 1px solid rgba(29,111,165,0.6); }
 .nextcard.onair { background: rgba(200,50,30,0.22); border-color: rgba(200,50,30,0.8); }
 .nextmsg { font-family: "Adwaita Mono", monospace; font-size: 17px; font-weight: 700; }
