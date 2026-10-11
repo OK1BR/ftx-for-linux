@@ -404,7 +404,14 @@ static void write_all_txt(FtxWindow *win, const FtxRxDecode *d)
   char dts[G_ASCII_DTOSTR_BUF_SIZE], mhz[G_ASCII_DTOSTR_BUF_SIZE];
   g_ascii_formatd(dts, sizeof dts, "%4.1f", d->dt);
   g_ascii_formatd(mhz, sizeof mhz, "%10.3f", win->dial_hz / 1e6);
-  fprintf(win->all_txt, "%06d_%06d%s Rx %-6s %3d %s %4d %s\n", d->day, d->nutc, mhz, d->ft4 ? "FT4" : "FT8", d->snr, dts, (int)(d->freq + 0.5f), d->msg);
+  char d37[38], annot[8] = "";
+  snprintf(d37, sizeof d37, "%-37.37s", d->msg);
+  if (d->nap != 0) {
+    snprintf(annot, sizeof annot, " a%d", d->nap % 10);
+    if (d->qual < 0.17f) d37[36] = '?';
+  }
+  g_strchomp(d37);
+  fprintf(win->all_txt, "%06d_%06d%s Rx %-6s %3d %s %4d %s%s\n", d->day, d->nutc, mhz, d->ft4 ? "FT4" : "FT8", d->snr, dts, (int)(d->freq + 0.5f), d37, annot);
 }
 
 static void on_decode(const FtxRxDecode *d, gpointer user)
@@ -447,6 +454,8 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
   row.nutc = d->nutc; row.snr = d->snr; row.dt = d->dt; row.freq = (int)(d->freq + 0.5f);
   g_strlcpy(row.msg, d->msg, sizeof row.msg);
   row.ft4 = d->ft4;
+  row.nap = d->nap;
+  row.qual = d->qual;
   row.kind = for_us ? FTX_DECODE_TO_ME : (is_cq && win->s->hl_cq) ? FTX_DECODE_CQ : FTX_DECODE_PLAIN;
   ftx_decode_list_add(win->band, &row);
   if (right) ftx_decode_list_add(win->rxl, &row);
@@ -454,6 +463,7 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
   if (w2[0]) {
     char label[24];
     if (is_cq) snprintf(label, sizeof label, "CQ %s", w2); else g_strlcpy(label, w2, sizeof label);
+    if (d->nap != 0 && d->qual < 0.17f) g_strlcat(label, "?", sizeof label);
     ftx_waterfall_add_label(win->wf, d->nutc, d->freq, label,
                             for_us ? FTX_WF_LABEL_TO_ME : is_cq ? FTX_WF_LABEL_CQ : FTX_WF_LABEL_PLAIN);
   }

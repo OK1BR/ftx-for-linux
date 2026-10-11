@@ -26,6 +26,8 @@ typedef struct {
   char  msg[38];
   FtxDecodeKind kind;
   gboolean ft4;
+  int   nap;        /* a-priori type used (0 = none), shown as "aN" like jt9 */
+  float qual;       /* AP quality; < 0.17 = low confidence, jt9's "?"       */
 } FtxDecodeRow;
 
 GtkWidget *ftx_decode_list_new(const char *title);

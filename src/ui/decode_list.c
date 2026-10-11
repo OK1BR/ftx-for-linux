@@ -75,6 +75,18 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *d)
   gtk_widget_add_css_class(lab, "mono");
   gtk_widget_set_hexpand(lab, TRUE);
   gtk_box_append(GTK_BOX(box), lab);
+  if (d->nap != 0) {   /* AP decode: jt9's "aN", and "?" when its quality is low */
+    char a[8];
+    snprintf(a, sizeof a, "a%d", d->nap % 10);
+    GtkWidget *t = gtk_label_new(a); gtk_widget_add_css_class(t, "tag"); gtk_widget_add_css_class(t, "dim");
+    gtk_widget_set_tooltip_text(t, "A-priori decode: my call or the DX call were assumed");
+    gtk_box_append(GTK_BOX(box), t);
+    if (d->qual < 0.17f) {
+      GtkWidget *q = gtk_label_new("?"); gtk_widget_add_css_class(q, "tag"); gtk_widget_add_css_class(q, "tag-me");
+      gtk_widget_set_tooltip_text(q, "Low confidence — may be a false decode");
+      gtk_box_append(GTK_BOX(box), q);
+    }
+  }
   if (d->kind == FTX_DECODE_B4) {
     GtkWidget *t = gtk_label_new("B4"); gtk_widget_add_css_class(t, "tag"); gtk_box_append(GTK_BOX(box), t);
   } else if (d->kind == FTX_DECODE_TO_ME) {
