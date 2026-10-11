@@ -7,14 +7,18 @@ member of the OK1BR family ([sdr-for-linux](https://github.com/OK1BR/sdr-for-lin
 [icom-for-linux](https://github.com/OK1BR/icom-for-linux)). The radio link is
 TCI only.
 
-> **Status: phase 1 decoders done.** The FT8 and FT4 decoders (candidate
-> search, demodulation, LDPC/OSD, a-priori decoding, multi-pass subtraction,
-> WSJT-X's a7/a8 decodes) are ported from WSJT-X and reproduce its decodes
-> bit for bit on the reference recordings; the `ftx-decode` command decodes
-> WAV files, `ftx-rx` decodes live from a TCI radio, `ftx-record` saves
-> periods; the transmit side (message → tones → GFSK waveform exactly as
-> WSJT-X sends it) is in the library. Not yet: TX over TCI, the GUI. Follow
-> [docs/PORT-MAP.md](docs/PORT-MAP.md) for the module list.
+> **Status: decoders done, GUI in progress (RX only).** The FT8 and FT4
+> decoders (candidate search, demodulation, LDPC/OSD, a-priori decoding,
+> multi-pass subtraction, WSJT-X's a7/a8 decodes) are ported from WSJT-X and
+> reproduce its decodes bit for bit on the reference recordings. The
+> `ftx-for-linux` window receives live from a TCI radio: labelled waterfall,
+> Band activity and Rx frequency lists, a QSO panel with the standard
+> messages and the WSJT-X auto-sequencer logic (it shows what it would send;
+> transmitting over TCI is the next phase). The transmit waveforms (message →
+> tones → GFSK exactly as WSJT-X sends it) are in the library. CLI tools:
+> `ftx-decode` (WAV files), `ftx-rx` (live, text), `ftx-record`. Not yet: TX
+> over TCI, logging to log-for-linux. Follow [docs/PORT-MAP.md](docs/PORT-MAP.md)
+> for the module list.
 
 ## Provenance
 
@@ -41,8 +45,20 @@ this program are licensed under the GNU GPL v3 (or later); see
   ```
   `-5` selects FT4 (7.5 s files), `-c MYCALL -x HISCALL` enable a-priori
   decoding, `-d 1..3` sets the depth.
-- `src/app/` — the GLib layer above the core: TCI client (RX audio from
-  sdr-for-linux / icom-for-linux), UTC-aligned period assembly.
+- `src/app/` — the GLib layer above the core (no GTK): TCI client (RX audio
+  from sdr-for-linux / icom-for-linux), UTC-aligned period assembly, the live
+  RX engine (decoder thread, waterfall spectrum), the standard messages and
+  decoded-text helpers ported from WSJT-X's `mainwindow.cpp`/`decodedtext.cpp`,
+  settings (`~/.config/ftx-for-linux/config.ini`).
+- `src/ui/` — the GTK4/libadwaita application `ftx-for-linux`: header bar
+  with the radio's dial and mode, the waterfall (callsigns on the traces,
+  period tags, Rx/Tx brackets; click = Rx, right click = Tx), the two decode
+  panes as in WSJT-X, the QSO panel (partner, the transmission card, Tx1–Tx6,
+  auto-sequencer), the status bar (UTC, period, clock health from the mean
+  DT, TCI link). Double-click a decode to answer it, as in WSJT-X.
+  Optionally writes a WSJT-X compatible `ALL.TXT`
+  (`~/.local/share/ftx-for-linux/`). Design notes in
+  [docs/mockups/README.md](docs/mockups/README.md).
 - `src/ftx-record.c` — records UTC-aligned 15 s (or 7.5 s) periods from a
   TCI radio as WSJT-X-style `YYMMDD_HHMMSS.wav` files (12000 S/s, 16-bit):
 
@@ -61,4 +77,5 @@ meson compile -C build
 ```
 
 Dependencies: meson, a C99 compiler, FFTW3 (`fftw3`, `fftw3f`); the app layer
-adds GLib and libwebsockets.
+adds GLib and libwebsockets; the GUI adds GTK4 (>= 4.12) and libadwaita
+(>= 1.5). `meson install` adds the launcher, icon and AppStream metadata.

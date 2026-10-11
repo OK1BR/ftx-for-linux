@@ -172,7 +172,47 @@ sdr-for-linux running). GUI mockups done 2026-10-11 (`docs/mockups/`:
 `ftx_main_window.c`, `ftx_preferences.c`, PNGs, README with the design
 decisions and the Broadway + headless-Chrome screenshot recipe; Richard's
 user GTK stylesheet recolours stock widgets, hence TX state in custom-drawn
-elements) — waiting for Richard's review before GUI code in `src/`. Next:
-live RX test, then the GUI. Installing AUR `wsjtx` (jt9 oracle) is a later,
-separate consent. Committed and pushed 2026-10-10 (3296aa9 still carries
-dev/ material in history; the follow-up commit removes it from the tree).
+elements). Installing AUR `wsjtx` (jt9 oracle) is a later, separate consent.
+
+2026-10-11 (later): Richard on the mockups: "zatím nevím, postavíme to a
+budeme to pak dál ladit a upravovat podle používání v praxi" — so the GUI
+was built as mocked and is tuned from use, not from further layout questions.
+**GUI built, RX only** (`src/ui/`, binary `ftx-for-linux`, `data/` with
+desktop file, icons, metainfo, CSS resource): `window.c` (header with the
+radio's dial/mode from TCI, Monitor = connect/disconnect in a GTask thread,
+FT8/FT4), `waterfall.c` (rows with UTC stamps → period tags, decode labels
+on traces, Rx/Tx brackets; click = Rx, right/Shift = Tx, Ctrl = both, as
+WSJT-X's plotter), `decode_list.c` (jt9 line layout, period separators,
+double-click = answer), `qso_panel.c` (DX call/grid/report, the transmission
+card, Tx1–Tx6, auto-sequencer switch; TX buttons insensitive with the reason
+as tooltip until TX over TCI exists), `status_bar.c`, `preferences.c`
+(Station/Radio/Decoder/Logging/Display, every row a real parameter), About
+with debug info. `src/app/rx_engine.c` is the live RX engine shared by
+`ftx-rx` and the GUI (jt9's 41/47/50 sequence, ltry_a8, skipped periods,
+spectrum rows for the waterfall; callbacks marshalled to a GMainContext);
+`src/app/messages.c` ports genStdMsgs/genCQMsg/stdCall, base_callsign, the
+DecodedText tokenizer, deCallAndGrid, report(), stdmsg; `window.c` ports
+processMessage (SpecOp::NONE, FT8/FT4), the Rx-pane rule and write_all
+(ALL.TXT in `~/.local/share/ftx-for-linux/`, optional). Settings are a
+GKeyFile at `~/.config/ftx-for-linux/config.ini` (`src/app/settings.c`).
+Decimal points everywhere (`setlocale(LC_NUMERIC, "C")` after GTK init).
+Minimum versions declared: gtk4 ≥ 4.12, libadwaita ≥ 1.5.
+Verified headless (Broadway :22 + headless Chrome with remote debugging,
+`dev/tools/cdp_shot.js` and a click driver, mock TCI server streaming the
+FT8 sample; work dir /tmp/ftx-gui, trashed afterwards): the window connects,
+shows the sample's 21 decodes per period in Band activity, the K1JT rows in
+Rx frequency with "→ me", labels and period tags on the waterfall, mean DT
+in the status bar; double-click on "K1JT EA3AGB -15" sets DX EA3AGB,
+report -17, received -15, next = Tx3 "EA3AGB K1JT R-17" (as processMessage
+does); right-click moves Tx; the auto-sequencer re-sets Rx to the partner's
+frequency on his next decode (WSJT-X behaviour). Under Richard's stylesheet
+the card and tags stay readable. `ftx-rx` after the refactor onto the engine
+reproduces the same decode sets on the mock (per-line ±1 dB/±0.1 s between
+runs = stream alignment, identical periods within a run). 79 local gates
+green (new `dev/tests/test_messages.c`). Deviations to remember: the
+sequencer reacts on Auto sequence alone (WSJT-X also requires Enable TX —
+that gate comes with TX over TCI); decoding runs after the period ends (no
+early decode at 11.8 s yet); country/zones/B4 are blank until log-for-linux
+is linked. Next: Richard runs it live against sdr-for-linux and we tune from
+practice; then TX over TCI + logging; the live RX test against the real
+server has still never happened (server not running during this work).

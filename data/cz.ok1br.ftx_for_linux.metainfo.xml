@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>cz.ok1br.ftx_for_linux</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>FTX for Linux</name>
+  <summary>FT8 and FT4 for TCI radios</summary>
+  <description>
+    <p>
+      A native GTK4/libadwaita FT8 and FT4 program for Linux. The decoders are
+      ported by hand from WSJT-X (v3.0.2) to C and are bit-exact against the
+      original: a-priori decoding, multipass signal subtraction and the
+      complete 77-bit message set. The radio is reached over TCI
+      (sdr-for-linux, icom-for-linux): audio both ways and keying on one
+      WebSocket connection.
+    </p>
+    <p>
+      One window: a labelled waterfall, the Band activity and Rx frequency
+      lists operators know from WSJT-X, and a QSO panel built around the one
+      line that matters — what goes on the air next and when.
+    </p>
+  </description>
+  <developer id="cz.ok1br">
+    <name>Richard Fakenberg, OK1BR</name>
+  </developer>
+  <launchable type="desktop-id">cz.ok1br.ftx_for_linux.desktop</launchable>
+  <url type="homepage">https://github.com/OK1BR/ftx-for-linux</url>
+  <url type="bugtracker">https://github.com/OK1BR/ftx-for-linux/issues</url>
+  <url type="vcs-browser">https://github.com/OK1BR/ftx-for-linux</url>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>HamRadio</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.0.1" date="2026-10-11">
+      <description><p>First GUI: live RX over TCI, FT8 and FT4 decoding, waterfall, decode lists, QSO panel (RX only).</p></description>
+    </release>
+  </releases>
+</component>

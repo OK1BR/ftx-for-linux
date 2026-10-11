@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=FTX for Linux
+Comment=FT8 and FT4 for TCI radios
+Comment[cs]=FT8 a FT4 pro rádia s TCI
+Exec=@bindir@/ftx-for-linux
+Icon=cz.ok1br.ftx_for_linux
+Terminal=false
+Categories=AudioVideo;Audio;HamRadio;
+Keywords=FT8;FT4;ham;radio;amateur;digital;WSJT;TCI;
+StartupNotify=true
+StartupWMClass=cz.ok1br.ftx_for_linux

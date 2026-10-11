@@ -20,6 +20,16 @@ vectors are development material and are not part of this repository).
 
 | transmit | `lib/ft8/genft8.f90`, `gen_ft8wave.f90` (real branch, as mainwindow.cpp transmits: 48 kHz, nsps 7680), `lib/ft4/genft4.f90`, `gen_ft4wave.f90` (48 kHz, nsps 2304) | done |
 
+The app layer (`src/app/`, `src/ui/`) ports the QSO logic of the WSJT-X GUI
+(C++/Qt, no bit-exact gate possible — verified by unit tests on the derived
+behaviour and in practice):
+
+| app | WSJT-X source | status |
+|---|---|---|
+| `app/messages` | `widgets/mainwindow.cpp` (`genStdMsgs`, `genCQMsg`, `stdCall`), `Radio.cpp` (`base_callsign`, `is_callsign`), `Decoder/decodedtext.cpp` (tokenizer `tokens_re`, `deCallAndGrid`, `report`), `lib/stdmsg.f90` | done (FT8/FT4 only, no contest exchanges) |
+| `app/rx_engine` | `lib/decoder.f90` call sequence (nzhsym 41/47/50, `ltry_a8`) as `jt9` drives it | done |
+| `ui/window` | `widgets/mainwindow.cpp` `processMessage` (SpecOp::NONE, FT8/FT4), the Rx-frequency pane rule of `readFromStdout`, `auto_sequence`, `write_all` (ALL.TXT) | RX side done; the TX gate of the sequencer comes with TX over TCI |
+
 Not ported on purpose: `bpdecode174_91.f90` (no caller outside the ft8var
 decoder in v3.0.2; `decode174_91` carries its own BP) and
 `ldpc_174_91_c_colorder.f90` (only the old (174,87) encoder uses it).
