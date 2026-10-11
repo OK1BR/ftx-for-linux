@@ -24,6 +24,7 @@ static const struct key {
   K("decoder", "nfa", T_INT, nfa), K("decoder", "nfb", T_INT, nfb),
   K("decoder", "clock_warn_dt", T_DOUBLE, clock_warn_dt), K("decoder", "show_dt_health", T_BOOL, show_dt_health),
   K("display", "palette", T_INT, palette), K("display", "rows_per_s", T_INT, rows_per_s),
+  K("display", "filter_op", T_INT, filter_op),
   K("display", "wf_labels", T_BOOL, wf_labels),
   K("display", "hl_cq", T_BOOL, hl_cq), K("display", "dim_b4", T_BOOL, dim_b4),
   K("display", "keep_periods", T_INT, keep_periods),
@@ -44,7 +45,7 @@ void ftx_settings_defaults(FtxSettings *s)
   g_strlcpy(s->tci_host, "127.0.0.1", sizeof s->tci_host); s->tci_port = 40001; s->connect_at_start = TRUE;
   s->tx_level_pct = 90; s->check_mode = TRUE;
   s->depth = 3; s->ap = TRUE; s->nfa = 200; s->nfb = 4000; s->clock_warn_dt = 0.5; s->show_dt_health = TRUE;
-  s->palette = 0; s->rows_per_s = 8; s->wf_labels = TRUE;
+  s->palette = 0; s->rows_per_s = 8; s->wf_labels = TRUE; s->filter_op = 60;
   s->hl_cq = TRUE; s->dim_b4 = TRUE; s->keep_periods = 20;
   s->rx_hz = 1500; s->tx_hz = 1500; s->hold_tx = TRUE; s->tx_eq_rx = FALSE; s->auto_seq = TRUE; s->report = -10;
   s->win_w = 1180; s->win_h = 960; s->paned_pos = 320; s->lists_pos = 820;

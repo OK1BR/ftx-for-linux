@@ -38,6 +38,8 @@ void   ftx_waterfall_set_palette(FtxWaterfall *w, int palette);        /* index 
 int         ftx_waterfall_palette_count(void);
 const char *ftx_waterfall_palette_name(int idx);
 void   ftx_waterfall_set_show_labels(FtxWaterfall *w, gboolean show);
+/* Opacity of the Rx/Tx passband overlays, 0-100 % (the same slider as sdr-for-linux's "Filter opacity"). */
+void   ftx_waterfall_set_filter_opacity(FtxWaterfall *w, int pct);
 
 /* Signals: "rx-clicked" (gdouble hz), "tx-clicked" (gdouble hz). */
 

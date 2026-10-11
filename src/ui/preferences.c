@@ -2,6 +2,7 @@
  * OK1BR.  GPL-3.0-or-later. */
 #include "preferences.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "waterfall.h"
@@ -53,6 +54,47 @@ static void on_combo(GObject *row, GParamSpec *ps, gpointer user)
   int off = GPOINTER_TO_INT(g_object_get_data(row, "offset"));   /* stored value = index + offset */
   *f = (int)adw_combo_row_get_selected(ADW_COMBO_ROW(row)) + off;
   notify(c);
+}
+
+/* a slider row as sdr-for-linux's pref_slider: the scale and a numeric label as suffixes */
+static void slider_label(GtkRange *r, gpointer label)
+{
+  const char *fmt = g_object_get_data(G_OBJECT(label), "fmt");
+  char buf[32];
+  snprintf(buf, sizeof buf, fmt, gtk_range_get_value(r));
+  gtk_label_set_text(GTK_LABEL(label), buf);
+}
+
+static void on_slider(GtkRange *r, gpointer user)
+{
+  Ctx *c = user;
+  int *f = g_object_get_data(G_OBJECT(r), "field");
+  *f = (int)(gtk_range_get_value(r) + 0.5);
+  notify(c);
+}
+
+static void slider(Ctx *c, GtkWidget *g, const char *title, const char *sub, double lo, double hi, int *field, const char *fmt)
+{
+  GtkWidget *r = adw_action_row_new();
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(r), title);
+  if (sub) adw_action_row_set_subtitle(ADW_ACTION_ROW(r), sub);
+  GtkWidget *sc = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, lo, hi, 1);
+  gtk_range_set_value(GTK_RANGE(sc), *field);
+  gtk_widget_set_size_request(sc, 170, -1);
+  gtk_widget_set_valign(sc, GTK_ALIGN_CENTER);
+  gtk_scale_set_draw_value(GTK_SCALE(sc), FALSE);
+  GtkWidget *lbl = gtk_label_new(NULL);
+  gtk_label_set_width_chars(GTK_LABEL(lbl), 7);
+  gtk_label_set_xalign(GTK_LABEL(lbl), 1.0);
+  gtk_widget_add_css_class(lbl, "numeric");
+  g_object_set_data_full(G_OBJECT(lbl), "fmt", g_strdup(fmt), g_free);
+  slider_label(GTK_RANGE(sc), lbl);
+  g_object_set_data(G_OBJECT(sc), "field", field);
+  g_signal_connect(sc, "value-changed", G_CALLBACK(slider_label), lbl);
+  g_signal_connect(sc, "value-changed", G_CALLBACK(on_slider), c);
+  adw_action_row_add_suffix(ADW_ACTION_ROW(r), sc);
+  adw_action_row_add_suffix(ADW_ACTION_ROW(r), lbl);
+  adw_preferences_group_add(ADW_PREFERENCES_GROUP(g), r);
 }
 
 static GtkWidget *group(AdwPreferencesPage *page, const char *title, const char *desc)
@@ -189,6 +231,8 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   s->palette = CLAMP(s->palette, 0, npal - 1);
   combo(c, g, "Palette", "the same schemes as sdr-for-linux and skimmer-for-linux", pal, &s->palette);
   spin(c, g, "Rows per second", "waterfall speed (one row = one pixel)", 1, 10, 1, 0, &s->rows_per_s, NULL);
+  s->filter_op = CLAMP(s->filter_op, 0, 100);
+  slider(c, g, "Filter opacity", "Rx/Tx passband overlay transparency, as in sdr-for-linux", 0, 100, &s->filter_op, "%.0f %%");
   sw(c, g, "Label decoded signals on the waterfall", NULL, &s->wf_labels);
   g = group(p, "Decode lists", NULL);
   sw(c, g, "Highlight CQ", NULL, &s->hl_cq);

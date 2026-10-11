@@ -32,6 +32,7 @@ typedef struct {
   gboolean show_dt_health;
   /* [display] */
   int      palette;         /* family palette index (0 = Classic)           */
+  int      filter_op;       /* Rx/Tx passband overlay opacity, % (sdr-for-linux's filter_op) */
   int      rows_per_s;      /* waterfall rows per second                    */
   gboolean wf_labels;       /* callsigns on the waterfall                   */
   gboolean hl_cq;

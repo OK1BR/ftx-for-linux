@@ -323,4 +323,12 @@ neopravuji"); Esc = Halt TX via a key controller on the window, bubble phase
 so an open dialog or popover takes the Esc first ("halt tx tlačítko musí
 reagovat na ESC klávesu").  Verified headless: double-click → report −14 shown,
 Enable TX → ON AIR, Esc → RX with the "Halt TX" toast.
+Then: the Tx passband marker had its line on the upper edge with the fill
+below ("vypadá jako by ukazoval LSB a ne USB") — both passbands now start at
+the base tone and extend upwards, the Tx edges dashed and its axis flag an
+outline so Rx = Tx stays readable; the shades are sdr-for-linux's (gui.c
+COL_RX_FILL/EDGE, COL_TX_FILL/EDGE, fill 0.22·op, 1 px edges 0.95·op) with
+the same "Filter opacity" slider (`[display] filter_op`, default 60) in
+Preferences › Display ("odstíny filtru udělej stejně jako má SDR, včetně
+případného nastavení").
 

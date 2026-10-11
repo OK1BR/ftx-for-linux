@@ -961,6 +961,7 @@ static void on_qso_action(FtxQsoPanel *q, int action, gpointer user)
 static void apply_settings(FtxWindow *win)
 {
   ftx_waterfall_set_palette(win->wf, win->s->palette);
+  ftx_waterfall_set_filter_opacity(win->wf, win->s->filter_op);
   ftx_waterfall_set_show_labels(win->wf, win->s->wf_labels);
   ftx_waterfall_set_span(win->wf, 0, MAX(win->s->nfb, 1000));
   ftx_rx_engine_set_rows_per_second(win->eng, win->s->rows_per_s);

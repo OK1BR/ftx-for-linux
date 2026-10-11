@@ -11,6 +11,11 @@
 #define MAX_ROWS 1000
 #define AXIS_H   22
 #define FONT     "Adwaita Mono"
+/* the passband colours of sdr-for-linux (src/gui.c there), RX green / TX red */
+#define COL_RX_FILL  0.16, 0.66, 0.36
+#define COL_RX_EDGE  0.36, 0.92, 0.52
+#define COL_TX_FILL  1.00, 0.28, 0.22
+#define COL_TX_EDGE  1.00, 0.36, 0.30
 
 struct label {
   gint64 seq;              /* row counter when added (for pruning)  */
@@ -34,6 +39,7 @@ struct _FtxWaterfall {
   GArray *labels;
   double  rx_hz, tx_hz, fmin, fmax, period_s, bw_hz, range_db;
   int     palette;
+  int     filter_op;       /* passband overlay opacity, %           */
   gboolean show_labels;
   guint8 *pix;
   gsize   pix_cap;
@@ -193,6 +199,7 @@ SETTER(bandwidth, bw_hz, double)
 SETTER(palette, palette, int)
 SETTER(show_labels, show_labels, gboolean)
 #undef SETTER
+void ftx_waterfall_set_filter_opacity(FtxWaterfall *w, int pct) { w->filter_op = CLAMP(pct, 0, 100); gtk_widget_queue_draw(GTK_WIDGET(w)); }
 double ftx_waterfall_get_rx_hz(FtxWaterfall *w) { return w->rx_hz; }
 void ftx_waterfall_set_span(FtxWaterfall *w, double fmin, double fmax)
 {
@@ -376,28 +383,47 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
     }
   }
 
-  /* Rx / Tx brackets, one signal bandwidth wide */
-  double xr = x_of(w, w->rx_hz, W), xw = x_of(w, w->rx_hz + w->bw_hz, W) - xr;
+  /* Rx / Tx passbands in sdr-for-linux's colour language (gui.c there:
+   * COL_RX_FILL/EDGE, COL_TX_FILL/EDGE; fill 0.22·op, both edges 1 px at
+   * 0.95·op, op = the "Filter opacity" slider — Richard 2026-10-11: "odstíny
+   * filtru udělej stejně jako má SDR").  The band starts at the base tone and
+   * extends upwards (USB; the earlier Tx line on the upper edge "looked like
+   * LSB").  The Tx edges are dashed and the Tx flag an outline, so both stay
+   * visible when Rx = Tx. */
+  const double op = w->filter_op / 100.0;
+  const double xr0 = floor(x_of(w, w->rx_hz, W)) + 0.5, xr1 = floor(x_of(w, w->rx_hz + w->bw_hz, W)) + 0.5;
+  const double xt0 = floor(x_of(w, w->tx_hz, W)) + 0.5, xt1 = floor(x_of(w, w->tx_hz + w->bw_hz, W)) + 0.5;
+  const double y0 = AXIS_H + 1;
+  cairo_set_line_width(cr, 1.0);
+  cairo_set_source_rgba(cr, COL_RX_FILL, op * 0.22);
+  cairo_rectangle(cr, xr0, y0, xr1 - xr0, H - y0); cairo_fill(cr);
+  cairo_set_source_rgba(cr, COL_TX_FILL, op * 0.22);
+  cairo_rectangle(cr, xt0, y0, xt1 - xt0, H - y0); cairo_fill(cr);
+  cairo_set_source_rgba(cr, COL_RX_EDGE, op * 0.95);
+  cairo_move_to(cr, xr0, y0); cairo_line_to(cr, xr0, H);
+  cairo_move_to(cr, xr1, y0); cairo_line_to(cr, xr1, H);
+  cairo_stroke(cr);
+  {
+    const double dash[] = { 7, 5 };
+    cairo_set_dash(cr, dash, 2, 0);
+    cairo_set_source_rgba(cr, COL_TX_EDGE, op * 0.95);
+    cairo_move_to(cr, xt0, y0); cairo_line_to(cr, xt0, H);
+    cairo_move_to(cr, xt1, y0); cairo_line_to(cr, xt1, H);
+    cairo_stroke(cr);
+    cairo_set_dash(cr, NULL, 0, 0);
+  }
+  /* flags in the axis strip at the base tone (the numbers live in the console
+   * and the Rx-frequency pane header): Rx filled, Tx an outline */
+  cairo_set_source_rgba(cr, 0, 0, 0, 0.7);
+  cairo_move_to(cr, xr0 - 8, 0); cairo_line_to(cr, xr0 + 8, 0); cairo_line_to(cr, xr0, 14); cairo_close_path(cr); cairo_fill(cr);
+  cairo_set_source_rgba(cr, COL_RX_EDGE, 1);
+  cairo_move_to(cr, xr0 - 6, 1); cairo_line_to(cr, xr0 + 6, 1); cairo_line_to(cr, xr0, 11); cairo_close_path(cr); cairo_fill(cr);
   cairo_set_line_width(cr, 2);
-  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 0.95);
-  cairo_move_to(cr, xr, AXIS_H + 1); cairo_line_to(cr, xr, H); cairo_stroke(cr);
-  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 0.18);
-  cairo_rectangle(cr, xr, AXIS_H + 1, xw, H); cairo_fill(cr);
-  double xt = x_of(w, w->tx_hz, W);
-  cairo_set_source_rgba(cr, 1.0, 0.3, 0.25, 0.95);
-  cairo_move_to(cr, xt + xw, AXIS_H + 1); cairo_line_to(cr, xt + xw, H); cairo_stroke(cr);
-  cairo_set_source_rgba(cr, 1.0, 0.3, 0.25, 0.10);
-  cairo_rectangle(cr, xt, AXIS_H + 1, xw, H); cairo_fill(cr);
-  /* Rx / Tx flags in the axis strip (the numbers live in the console and
-   * the Rx-frequency pane header) */
   cairo_set_source_rgba(cr, 0, 0, 0, 0.7);
-  cairo_move_to(cr, xr - 8, 0); cairo_line_to(cr, xr + 8, 0); cairo_line_to(cr, xr, 14); cairo_close_path(cr); cairo_fill(cr);
-  cairo_set_source_rgba(cr, 0.3, 1.0, 0.4, 1);
-  cairo_move_to(cr, xr - 6, 1); cairo_line_to(cr, xr + 6, 1); cairo_line_to(cr, xr, 11); cairo_close_path(cr); cairo_fill(cr);
-  cairo_set_source_rgba(cr, 0, 0, 0, 0.7);
-  cairo_move_to(cr, xt + xw - 8, 0); cairo_line_to(cr, xt + xw + 8, 0); cairo_line_to(cr, xt + xw, 14); cairo_close_path(cr); cairo_fill(cr);
-  cairo_set_source_rgba(cr, 1.0, 0.3, 0.25, 1);
-  cairo_move_to(cr, xt + xw - 6, 1); cairo_line_to(cr, xt + xw + 6, 1); cairo_line_to(cr, xt + xw, 11); cairo_close_path(cr); cairo_fill(cr);
+  cairo_move_to(cr, xt0 - 7, 1); cairo_line_to(cr, xt0 + 7, 1); cairo_line_to(cr, xt0, 12); cairo_close_path(cr); cairo_stroke(cr);
+  cairo_set_line_width(cr, 1.5);
+  cairo_set_source_rgba(cr, COL_TX_EDGE, 1);
+  cairo_move_to(cr, xt0 - 6, 1.5); cairo_line_to(cr, xt0 + 6, 1.5); cairo_line_to(cr, xt0, 11); cairo_close_path(cr); cairo_stroke(cr);
   cairo_destroy(cr);
 }
 
@@ -449,6 +475,7 @@ static void ftx_waterfall_init(FtxWaterfall *w)
   w->labels = g_array_new(FALSE, FALSE, sizeof(struct label));
   w->rx_hz = 1500; w->tx_hz = 1500; w->fmin = 0; w->fmax = 4000; w->period_s = 15; w->bw_hz = 50; w->range_db = 40;
   w->show_labels = TRUE;
+  w->filter_op = 60;
   GtkGesture *click = gtk_gesture_click_new();
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
   g_signal_connect(click, "pressed", G_CALLBACK(on_pressed), w);

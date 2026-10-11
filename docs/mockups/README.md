@@ -72,7 +72,10 @@ the header carries icons as sdr-for-linux and skimmer-for-linux do — the
 Monitor toggle is the TCI icon, FT8/FT4 is a compact dropdown — instead of
 the text toggles ("v té horní liště by měly být ikony jako v sdr"); the
 report to send is shown, not edited ("v reálném provozu ho stejně nikdy
-neopravuji"); Esc = Halt TX anywhere in the window.
+neopravuji"); Esc = Halt TX anywhere in the window; the Rx/Tx passbands
+start at the base tone and extend upwards as USB reads (the Tx line on the
+upper edge "looked like LSB") and use sdr-for-linux's passband colours and
+"Filter opacity" slider ("odstíny filtru udělej stejně jako má SDR").
 
 ## Design decisions
 
