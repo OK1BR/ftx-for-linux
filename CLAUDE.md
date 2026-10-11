@@ -353,4 +353,18 @@ snapshot on the desk serves the family), then the system data dirs, then
 when the grid is unknown; About debug info lists the cty.dat version and path;
 gate `dev/tests/test_cty.c` (log-for-linux's cty_test with the sample as a vector
 file) → 80 gates.  The lists' country column still waits (not asked).
+Then: **list order and follow** (Richard: "výpisy band a rx řadit sestupně časově,
+volba v nastavení … aby se to vždy odscrollovalo na začátek výpisu"): Preferences ›
+Display › Decode lists has "Newest period first" (`[display] newest_first`, default
+off = WSJT-X order) and "Follow new decodes" (`follow_new`, default on: every new
+line scrolls to the newest period — the top when newest first, the bottom otherwise;
+off = the old sticky behaviour, follow only when already there).  `decode_list.c`
+keeps a chronological GArray model; newest first inserts the separator at index 0 on
+a period change and the lines at `cur_count` so a block keeps the decoder's order as
+stages 41/47/50 arrive; prune drops the first block (oldest first) or the last
+(newest first) plus the model's first run of equal nutc/ft4; a runtime order change
+rebuilds from the model.  Verified headless (newest_first, keep 2): block order,
+within-block order, wheel-scroll then back at the top on the next period, the oldest
+block gone after the third period.  The order flip in the dialog itself is not
+exercised headless (Broadway tab limitation).
 

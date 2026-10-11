@@ -235,6 +235,8 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   slider(c, g, "Filter opacity", "Rx/Tx passband overlay transparency, as in sdr-for-linux", 0, 100, &s->filter_op, "%.0f %%");
   sw(c, g, "Label decoded signals on the waterfall", NULL, &s->wf_labels);
   g = group(p, "Decode lists", NULL);
+  sw(c, g, "Newest period first", "the latest decodes at the top, older periods below", &s->newest_first);
+  sw(c, g, "Follow new decodes", "scroll to the newest period after every decode, even after you scrolled away", &s->follow_new);
   sw(c, g, "Highlight CQ", NULL, &s->hl_cq);
   spin(c, g, "Keep periods", "how many periods stay in Band activity", 1, 60, 1, 0, &s->keep_periods, NULL);
   return d;

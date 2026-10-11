@@ -31,11 +31,18 @@ typedef struct {
 } FtxDecodeRow;
 
 GtkWidget *ftx_decode_list_new(const char *title);
-/* Append a line; a separator is inserted when the period changes. */
+/* Add a line to its period; a separator parts the periods.  Periods run
+ * oldest to newest (WSJT-X) or newest first; within a period the lines keep
+ * the decoder's order either way. */
 void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *row);
 /* Drop the oldest periods beyond keep. */
 void ftx_decode_list_prune(FtxDecodeList *l, int keep_periods);
 void ftx_decode_list_clear(FtxDecodeList *l);
+/* Order of the periods; switching rebuilds the pane from its history. */
+void ftx_decode_list_set_order(FtxDecodeList *l, gboolean newest_first);
+/* TRUE: every new line scrolls the pane to the newest period (the top when
+ * newest first, else the bottom).  FALSE: only when it was already there. */
+void ftx_decode_list_set_follow(FtxDecodeList *l, gboolean follow);
 /* The dim note at the right of the pane header (decode count, Rx frequency). */
 void ftx_decode_list_set_note(FtxDecodeList *l, const char *text);
 

@@ -977,6 +977,10 @@ static void apply_settings(FtxWindow *win)
   ftx_waterfall_set_show_labels(win->wf, win->s->wf_labels);
   ftx_waterfall_set_span(win->wf, 0, MAX(win->s->nfb, 1000));
   ftx_rx_engine_set_rows_per_second(win->eng, win->s->rows_per_s);
+  ftx_decode_list_set_order(win->band, win->s->newest_first);
+  ftx_decode_list_set_order(win->rxl, win->s->newest_first);
+  ftx_decode_list_set_follow(win->band, win->s->follow_new);
+  ftx_decode_list_set_follow(win->rxl, win->s->follow_new);
   ftx_status_bar_set_clock_health(win->sb, win->s->show_dt_health, FALSE, 0, win->s->clock_warn_dt);
   if (!win->s->all_txt && win->all_txt) { fclose(win->all_txt); win->all_txt = NULL; }
   update_title(win);

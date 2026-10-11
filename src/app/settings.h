@@ -38,6 +38,8 @@ typedef struct {
   gboolean hl_cq;
   gboolean dim_b4;
   int      keep_periods;    /* Band activity history                        */
+  gboolean newest_first;    /* lists: the latest period at the top          */
+  gboolean follow_new;      /* lists: jump to the newest period on every decode */
   /* [logging] */
   gboolean all_txt;         /* write ALL.TXT                                */
   /* [state] — operating state remembered across runs */
