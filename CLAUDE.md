@@ -236,6 +236,23 @@ Layout changed to one column (Richard: three columns side by side were not
 ergonomic, the window too wide): the controls strip directly under the
 waterfall (two rows), the two decode panes side by side beneath it; decode
 lines and status items ellipsize, default window 1180×960.
+**Deep decoding timed like WSJT-X** (Richard: "zaměř se na deep dekódování …
+nesmí to být moc pomalé"): the period assembler fires stage callbacks
+(`ftx_period_set_stages`) at WSJT-X's half-symbol marks — FT8 at 41/47/50
+(11.8/13.5/14.4 s, `m_earlyDecode`/`m_earlyDecode2`/`m_hsymStop` in
+mainwindow.cpp), FT4 at 21 (6.05 s = FT4_NMAX) — and the RX engine decodes
+each stage as it arrives (STAGE jobs, the period's END job carries the
+statistics and is processed after the last stage).  The Fortran's live
+bail-outs are ported (`tseq_now()` in ftx_ft8_decode.c, `ldiskdat` false:
+the nzhsym-41 candidate loop stops at 13.4 s into the sequence, the
+nzhsym-47 subtraction loop at 14.3 s; gates pass ldiskdat true).  Measured
+on Richard's Core Ultra 7 265: nzhsym 41 ≈ 780 ms (17 decodes of the
+sample), 47 ≈ 150 ms, 50 ≈ 1.55 s (a7/a8 and OSD); with staging the first
+decodes print at 11.85 s into the period and the last 0.2 s after its end
+(before: all ≈ 2.5 s after).  Message set identical to ftx-decode.
+`FTX_RX_TIMING=1` prints per-stage times.  Waterfall labels are anchored
+10 s into the period (FT4 55 %) so early decodes do not slide; CQ labels
+no longer carry the "CQ" prefix (green says it).
 Decodes carry jt9's AP marks (aN, "?") in the lists, the labels and ALL.TXT
 (two false "OK1BR … R MJ61"-style AP decodes on the air prompted it).
 

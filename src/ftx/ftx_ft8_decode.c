@@ -9,10 +9,12 @@
  * Not ported: the real-time bail-outs on the wall clock (only active when
  * ldiskdat is false in WSJT-X).
  */
+#define _POSIX_C_SOURCE 200809L   /* clock_gettime for the live bail-outs */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "ftx_ft8_internal.h"
 
@@ -41,6 +43,19 @@ static void trim37(char *s)                           /* strip trailing blanks o
 {
   int n = (int)strlen(s);
   while (n > 0 && s[n - 1] == ' ') s[--n] = '\0';
+}
+
+/* timestamp(): tseq = seconds into the 15 s sequence from the system clock
+ * (below 10 it is counted as the next sequence, as the Fortran does).  Only
+ * consulted for live data (ldiskdat false): the real-time bail-outs. */
+static double tseq_now(void)
+{
+  struct timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  double sec = (double)(ts.tv_sec % 60) + ts.tv_nsec / 1e9;
+  double tseq = fmod(sec, 15.0);
+  if (tseq < 10.0) tseq += 15.0;
+  return tseq;
 }
 
 /* ft8_a7_save: enter a decode into the a7 table of this sequence */
@@ -129,7 +144,6 @@ void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params
   bool la8 = true;
   float sync_last = 0.0f;
   int nzhsym = p->nzhsym, ndepth = p->ndepth;
-  (void)ldiskdat;
   (void)n2;
 
   if (nzhsym == 41) ctx->jseq = (nutc / 5) % 2;
@@ -191,6 +205,10 @@ void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params
       if (ctx->xdt_save[i] - 0.5f < 0.396f) {
         ftx_ft8_subtract(ctx, dd, ctx->itone_save[i], ctx->f1_save[i], ctx->xdt_save[i], lrefinedt);
         ctx->lsubtracted[i] = true;
+      }
+      if (!ldiskdat && tseq_now() >= 14.3) {        /* bail out before done (live) */
+        memcpy(dd1, dd, NPTS * sizeof(float));
+        goto l800;
       }
     }
     memcpy(dd1, dd, NPTS * sizeof(float));
@@ -269,6 +287,7 @@ void ftx_ft8_decode(ftx_ft8_ctx *ctx, const int16_t *iwave, const ftx_ft8_params
             ft8_a7_save(ctx, jseq, xdt, f1, msg37);
           }
         }
+        if (!ldiskdat && nzhsym == 41 && tseq_now() >= 13.4) goto l800;   /* bail out before done (live) */
       }
     }
   }

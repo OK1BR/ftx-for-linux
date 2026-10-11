@@ -645,7 +645,7 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
 
   if (w2[0]) {
     char label[24];
-    if (is_cq) snprintf(label, sizeof label, "CQ %s", w2); else g_strlcpy(label, w2, sizeof label);
+    g_strlcpy(label, w2, sizeof label);     /* green already says CQ (Richard 2026-10-11) */
     if (d->nap != 0 && d->qual < 0.17f) g_strlcat(label, "?", sizeof label);
     ftx_waterfall_add_label(win->wf, d->nutc, d->freq, label,
                             for_us ? FTX_WF_LABEL_TO_ME : is_cq ? FTX_WF_LABEL_CQ : FTX_WF_LABEL_PLAIN);

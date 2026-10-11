@@ -327,7 +327,13 @@ static void ftx_waterfall_snapshot(GtkWidget *widget, GtkSnapshot *snap)
       }
       if (pi < 0) continue;
       double x = x_of(w, l->hz + w->bw_hz / 2, W);
-      double ly = wy0 + (pr[pi].first + pr[pi].last) / 2.0 - 8 + (stack[pi]++ % 3) * 13;
+      /* anchored 10 s after the period start (FT4: 4 s) so a label does not
+       * move while the period is still filling — decodes arrive before its end */
+      gint64 target = pr[pi].idx * period_us + (gint64)(period_us * (w->period_s > 10 ? 10.0 / w->period_s : 0.55));
+      int r_anchor = pr[pi].first;
+      for (int r = pr[pi].last; r >= pr[pi].first; r--)
+        if (w->row_t[row_index(w, r)] >= target) { r_anchor = r; break; }
+      double ly = wy0 + r_anchor + 4 + (stack[pi]++ % 3) * 13;
       cairo_text_extents_t te;
       cairo_text_extents(cr, l->text, &te);
       cairo_set_source_rgba(cr, 0, 0, 0, 0.6);

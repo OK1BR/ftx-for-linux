@@ -25,6 +25,10 @@ struct _FtxPeriod {
   int      peak;
   FtxPeriodCb cb;
   gpointer    user;
+  guint    marks[FTX_PERIOD_MAX_STAGES];
+  int      nmarks, next_stage;
+  FtxPeriodStageCb stage_cb;
+  gpointer stage_user;
 };
 
 static gint64 now_utc_ns(void)
@@ -56,17 +60,48 @@ void ftx_period_free(FtxPeriod *p)
 
 guint ftx_period_reanchors(FtxPeriod *p) { return p->reanchors; }
 
-static void emit(FtxPeriod *p, double drift_ms)
+void ftx_period_set_stages(FtxPeriod *p, const guint *marks, int nmarks, FtxPeriodStageCb cb, gpointer user_data)
 {
-  if (!p->cb) return;
+  p->nmarks = CLAMP(nmarks, 0, FTX_PERIOD_MAX_STAGES);
+  for (int i = 0; i < p->nmarks; i++) p->marks[i] = marks[i];
+  p->stage_cb = cb;
+  p->stage_user = user_data;
+  p->next_stage = 0;
+  while (p->next_stage < p->nmarks && (gint64)p->marks[p->next_stage] <= p->idx) p->next_stage++;
+}
+
+static void period_stamp(FtxPeriod *p, int *day, int *nutc)
+{
   gint64 start_ms = p->period_index * p->period_ms;
   time_t secs = (time_t)(start_ms / 1000);
   struct tm tm;
   gmtime_r(&secs, &tm);
-  int nutc = tm.tm_hour * 10000 + tm.tm_min * 100 + tm.tm_sec;
-  int day = (tm.tm_year % 100) * 10000 + (tm.tm_mon + 1) * 100 + tm.tm_mday;
+  *nutc = tm.tm_hour * 10000 + tm.tm_min * 100 + tm.tm_sec;
+  *day = (tm.tm_year % 100) * 10000 + (tm.tm_mon + 1) * 100 + tm.tm_mday;
+}
+
+static void emit(FtxPeriod *p, double drift_ms)
+{
+  if (!p->cb) return;
+  int day, nutc;
+  period_stamp(p, &day, &nutc);
   int gap_ms = (int)(((gint64)p->nsamp - p->filled) * 1000 / FTX_PERIOD_RATE);
   p->cb(p->buf, p->nsamp, day, nutc, drift_ms, gap_ms, p->peak, p->user);
+}
+
+static void emit_stage(FtxPeriod *p)
+{
+  int day, nutc;
+  period_stamp(p, &day, &nutc);
+  int gap_ms = (int)((p->idx - p->filled) * 1000 / FTX_PERIOD_RATE);
+  p->stage_cb(p->buf, (guint)p->idx, p->next_stage, day, nutc, gap_ms, p->stage_user);
+}
+
+/* the first stage mark beyond the write position (a period joined late skips the earlier ones) */
+static void reset_stages(FtxPeriod *p)
+{
+  p->next_stage = 0;
+  while (p->next_stage < p->nmarks && (gint64)p->marks[p->next_stage] <= p->idx) p->next_stage++;
 }
 
 /* (Re)anchor on a block whose last sample is "now" (t_ns). */
@@ -85,6 +120,7 @@ static void anchor(FtxPeriod *p, gint64 t_ns, guint nframes)
     p->period_index = pidx;
   }
   p->idx = pos;
+  reset_stages(p);
 }
 
 void ftx_period_push(FtxPeriod *p, const float *mono, guint nframes, guint rate)
@@ -120,6 +156,7 @@ void ftx_period_push_at(FtxPeriod *p, const float *mono, guint nframes, guint ra
       p->peak = 0;
       p->filled = 0;
       p->idx = 0;
+      p->next_stage = 0;
     }
     float v = mono[i] * p->gain;
     if (v > 32767.0f) v = 32767.0f;
@@ -130,6 +167,10 @@ void ftx_period_push_at(FtxPeriod *p, const float *mono, guint nframes, guint ra
     int a = s < 0 ? -s : s;
     if (a > p->peak) p->peak = a;
     p->idx++;
+    if (p->stage_cb && p->next_stage < p->nmarks && p->idx == (gint64)p->marks[p->next_stage]) {
+      emit_stage(p);
+      p->next_stage++;
+    }
   }
   p->count += nframes;
 }

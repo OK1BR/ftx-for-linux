@@ -27,7 +27,7 @@ behaviour and in practice):
 | app | WSJT-X source | status |
 |---|---|---|
 | `app/messages` | `widgets/mainwindow.cpp` (`genStdMsgs`, `genCQMsg`, `stdCall`), `Radio.cpp` (`base_callsign`, `is_callsign`), `Decoder/decodedtext.cpp` (tokenizer `tokens_re`, `deCallAndGrid`, `report`), `lib/stdmsg.f90` | done (FT8/FT4 only, no contest exchanges) |
-| `app/rx_engine` | `lib/decoder.f90` call sequence (nzhsym 41/47/50, `ltry_a8`) as `jt9` drives it | done |
+| `app/rx_engine` + `app/period` | `lib/decoder.f90` call sequence (nzhsym 41/47/50, `ltry_a8`) and `widgets/mainwindow.cpp` `dataSink`/`fixStop` timing (early decodes at half-symbols 41 and 47, the final at 50 = 14.4 s; FT4 at 21 = 6.05 s); `lib/ft8_decode.f90` live bail-outs (`timestamp`, 13.4 s / 14.3 s) in `ftx_ft8_decode` | done |
 | `app/tx_engine` | `Modulator/Modulator.cpp` (start delay 0.5 s FT8 / 0.3 s FT4, late start skips into the waveform, tune tone), `widgets/mainwindow.cpp` `guiUpdate` (the Tx window, start only before 0.75 of the period) | done — TX audio over TCI to sdr-for-linux's exciter |
 | `ui/window` | `widgets/mainwindow.cpp` `processMessage` (SpecOp::NONE, FT8/FT4), the Rx-frequency pane rule of `readFromStdout`, `auto_sequence` (gated on Enable TX), `cease_auto_Tx_after_QSO` after the first 73, the runaway watchdog, `write_all` (ALL.TXT Rx and Tx lines) | done (no Fox/Hound, no contest) |
 

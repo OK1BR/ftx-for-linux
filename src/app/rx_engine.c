@@ -12,16 +12,30 @@
 
 #define FTX_RX_ERROR (g_quark_from_static_string("ftx-rx-engine-error"))
 
+enum { JOB_STAGE, JOB_END, JOB_STOP };
+
+/* A STAGE job carries the period so far (zero-padded to the decoder's
+ * length) and the half-symbol count to decode with; an END job carries the
+ * period's statistics and is processed after its last stage. */
 struct job {
-  int16_t *samples;             /* NULL = stop marker                        */
+  int      kind;
+  int16_t *samples;
   guint    nsamp;
+  int      nzhsym;              /* FT8: 41, 47 or 50                         */
   int      day, nutc;
   double   dial_hz, drift_ms;
   int      gap_ms, peak;
+  FtxRxPeriodStatus status;
   gboolean ft4;
   ftx_ft8_params p8;
   ftx_ft4_params p4;
 };
+
+/* WSJT-X decodes FT8 at 41, 47 and 50 half-symbols (11.8, 13.5, 14.4 s) and
+ * FT4 at 21 (6.05 s = FT4_NMAX samples) */
+static const guint ft8_marks[3] = { 41 * 3456, 47 * 3456, 50 * 3456 };
+static const int   ft8_nzhsym[3] = { 41, 47, 50 };
+static const guint ft4_marks[1] = { FT4_NMAX };
 
 struct _FtxRxEngine {
   gint          refs;
@@ -50,8 +64,9 @@ struct _FtxRxEngine {
 
   /* worker thread only */
   gboolean    ltry_a8;
-  int         nd;
+  int         nd;               /* decodes of the period being decoded       */
   double      dt_sum;
+  double      decode_ms;        /* decoder time of the period so far         */
   struct job *cur;
 
   /* spectrum (audio thread; rps read atomically) */
@@ -158,33 +173,35 @@ static gpointer worker(gpointer data)
   FtxRxEngine *e = data;
   ftx_ft8_ctx *c8 = ftx_ft8_ctx_new();
   ftx_ft4_ctx *c4 = ftx_ft4_ctx_new();
-  int16_t *id2a = g_malloc(FT8_NMAX * sizeof(int16_t));
   for (;;) {
     struct job *j = g_async_queue_pop(e->queue);
-    if (j->samples == NULL) { g_free(j); break; }
-    e->nd = 0;
-    e->dt_sum = 0;
+    if (j->kind == JOB_STOP) { g_free(j); break; }
+    if (j->kind == JOB_END) {
+      emit_period(e, j, j->status, e->nd, e->decode_ms, e->dt_sum);
+      e->nd = 0; e->dt_sum = 0; e->decode_ms = 0;
+      g_free(j);
+      continue;
+    }
     e->cur = j;
+    if (j->ft4 || j->nzhsym == 41) { e->nd = 0; e->dt_sum = 0; e->decode_ms = 0; }
     gint64 t0 = g_get_monotonic_time();
+    int nd0 = e->nd;
     if (j->ft4) {
       ftx_ft4_decode(c4, j->samples, &j->p4, on_decode, e);
     } else {
-      static const int seq[3] = { 41, 47, 50 };
-      e->ltry_a8 = TRUE;                              /* decoder.f90: set at nzhsym 41 */
-      for (int s = 0; s < 3; s++) {
-        memset(id2a, 0, FT8_NMAX * sizeof(int16_t));
-        memcpy(id2a, j->samples, (size_t)seq[s] * 3456 * sizeof(int16_t));
-        j->p8.nzhsym = seq[s];
-        ftx_ft8_decode(c8, id2a, &j->p8, j->nutc, e->ltry_a8, false, 0.0f, on_decode, e);
-      }
+      if (j->nzhsym == 41) e->ltry_a8 = TRUE;         /* decoder.f90: set at nzhsym 41 */
+      j->p8.nzhsym = j->nzhsym;
+      ftx_ft8_decode(c8, j->samples, &j->p8, j->nutc, e->ltry_a8, false, 0.0f, on_decode, e);
     }
     double ms = (g_get_monotonic_time() - t0) / 1000.0;
-    emit_period(e, j, FTX_RX_PERIOD_DECODED, e->nd, ms, e->dt_sum);
+    e->decode_ms += ms;
+    if (g_getenv("FTX_RX_TIMING"))
+      g_printerr("timing: %06d %s: %.0f ms, %d decode(s)\n", j->nutc, j->ft4 ? "FT4" : (j->nzhsym == 41 ? "nzhsym 41" : j->nzhsym == 47 ? "nzhsym 47" : "nzhsym 50"),
+                 ms, e->nd - nd0);
     e->cur = NULL;
     g_free(j->samples);
     g_free(j);
   }
-  g_free(id2a);
   ftx_ft8_ctx_free(c8);
   ftx_ft4_ctx_free(c4);
   return NULL;
@@ -192,32 +209,61 @@ static gpointer worker(gpointer data)
 
 /* ---- audio thread -------------------------------------------------------- */
 
-static void on_period(const int16_t *samples, guint nsamp, int day, int nutc, double drift_ms, int gap_ms, int peak, gpointer user)
+static struct job *job_new(FtxRxEngine *e, int kind, int day, int nutc)
 {
-  FtxRxEngine *e = user;
   struct job *j = g_new0(struct job, 1);
-  j->day = day; j->nutc = nutc; j->drift_ms = drift_ms; j->gap_ms = gap_ms; j->peak = peak;
+  j->kind = kind;
+  j->day = day; j->nutc = nutc;
   j->dial_hz = ftx_tci_client_vfo_hz(e->tci);
   g_mutex_lock(&e->lock);
-  e->periods++;
   j->ft4 = e->ft4;
   j->p8 = e->p8;
   j->p4 = e->p4;
-  FtxRxPeriodStatus st = FTX_RX_PERIOD_DECODED;
+  g_mutex_unlock(&e->lock);
+  return j;
+}
+
+/* a stage of the period is in: decode it now (the state between the stages
+ * of one period lives in the decoder context) */
+static void on_stage(const int16_t *samples, guint nsamp, int stage, int day, int nutc, int gap_ms, gpointer user)
+{
+  FtxRxEngine *e = user;
+  g_mutex_lock(&e->lock);
+  gboolean keyed = e->keyed_seen;
+  g_mutex_unlock(&e->lock);
+  if (gap_ms > 0 || keyed || ftx_tci_client_tx(e->tci)) return;    /* the END job reports why */
+  struct job *j = job_new(e, JOB_STAGE, day, nutc);
+  guint len = j->ft4 ? FT4_NMAX : FT8_NMAX;
+  j->samples = g_malloc0(len * sizeof(int16_t));
+  memcpy(j->samples, samples, (size_t)MIN(nsamp, len) * sizeof(int16_t));
+  j->nsamp = len;
+  j->nzhsym = j->ft4 ? 0 : ft8_nzhsym[CLAMP(stage, 0, 2)];
+  g_async_queue_push(e->queue, j);
+}
+
+static void on_period(const int16_t *samples, guint nsamp, int day, int nutc, double drift_ms, int gap_ms, int peak, gpointer user)
+{
+  (void)samples; (void)nsamp;
+  FtxRxEngine *e = user;
+  struct job *j = job_new(e, JOB_END, day, nutc);
+  j->drift_ms = drift_ms; j->gap_ms = gap_ms; j->peak = peak;
+  g_mutex_lock(&e->lock);
+  e->periods++;
   gboolean keyed = e->keyed_seen || ftx_tci_client_tx(e->tci);
   e->keyed_seen = FALSE;
-  if (gap_ms > 0) { e->skipped_gap++; st = FTX_RX_PERIOD_GAP; }
-  else if (keyed) { e->skipped_keyed++; st = FTX_RX_PERIOD_KEYED; }
+  j->status = FTX_RX_PERIOD_DECODED;
+  if (gap_ms > 0) { e->skipped_gap++; j->status = FTX_RX_PERIOD_GAP; }
+  else if (keyed) { e->skipped_keyed++; j->status = FTX_RX_PERIOD_KEYED; }
   g_mutex_unlock(&e->lock);
-  if (st != FTX_RX_PERIOD_DECODED) {
-    emit_period(e, j, st, 0, 0.0, 0.0);
-    g_free(j);
-    return;
-  }
-  j->samples = g_malloc(nsamp * sizeof(int16_t));
-  memcpy(j->samples, samples, nsamp * sizeof(int16_t));
-  j->nsamp = nsamp;
   g_async_queue_push(e->queue, j);
+}
+
+static FtxPeriod *period_new_for(FtxRxEngine *e, gboolean ft4)
+{
+  FtxPeriod *p = ftx_period_new(ft4 ? 7500 : 15000, 32767.0f, on_period, e);
+  if (ft4) ftx_period_set_stages(p, ft4_marks, 1, on_stage, e);
+  else ftx_period_set_stages(p, ft8_marks, 3, on_stage, e);
+  return p;
 }
 
 static void spectrum_reset(FtxRxEngine *e)
@@ -363,7 +409,7 @@ void ftx_rx_engine_set_ft4(FtxRxEngine *e, gboolean ft4)
   g_mutex_lock(&e->audio_lock);
   if (e->period) {
     ftx_period_free(e->period);
-    e->period = ftx_period_new(ft4 ? 7500 : 15000, 32767.0f, on_period, e);
+    e->period = period_new_for(e, ft4);
   }
   g_mutex_unlock(&e->audio_lock);
 }
@@ -403,7 +449,7 @@ gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *host, guint16 port, G
   }
   e->tci = ftx_tci_client_new(host, port);
   g_mutex_lock(&e->audio_lock);
-  e->period = ftx_period_new(e->ft4 ? 7500 : 15000, 32767.0f, on_period, e);
+  e->period = period_new_for(e, e->ft4);
   spectrum_reset(e);
   g_mutex_unlock(&e->audio_lock);
   ftx_tci_client_set_audio_cb(e->tci, on_audio, e);
@@ -425,7 +471,9 @@ void ftx_rx_engine_disconnect(FtxRxEngine *e)
 {
   if (!e->connected) return;
   ftx_tci_client_stop(e->tci);
-  g_async_queue_push(e->queue, g_new0(struct job, 1));   /* stop marker */
+  struct job *stop = g_new0(struct job, 1);
+  stop->kind = JOB_STOP;
+  g_async_queue_push(e->queue, stop);
   g_thread_join(e->worker);
   e->worker = NULL;
   struct job *j;
