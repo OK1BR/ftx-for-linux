@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app/cty.h"
 #include "app/messages.h"
 #include "app/rx_engine.h"
 #include "app/tx_engine.h"
@@ -28,6 +29,8 @@ struct _FtxWindow {
   AdwApplicationWindow parent_instance;
   FtxSettings    *s;
   FtxRxEngine    *eng;
+  FtxCty         *cty;           /* country from the call prefix; NULL = no cty.dat */
+  char           *cty_path;
   FtxTxEngine    *tx;
   ftx_pack77_ctx *pc;
 
@@ -180,14 +183,21 @@ static void set_dx(FtxWindow *win, const char *call, const char *grid)
   g_strlcpy(win->his_call, call ? call : "", sizeof win->his_call);
   g_strlcpy(win->his_grid, grid ? grid : "", sizeof win->his_grid);
   ftx_qso_panel_set_dx(win->qso, win->his_call, win->his_grid);
-  /* what we know about him: distance and bearing from the grids */
-  char info[160] = "";
+  /* what we know about him: distance and bearing from the grids, the
+   * country from the call prefix (cty.dat) */
+  char info[200] = "";
   if (win->his_call[0]) {
     double az, km;
+    FtxCtyInfo ci;
+    gboolean have_cty = win->cty && ftx_cty_lookup(win->cty, win->his_call, &ci);
     if (win->his_grid[0] && ftx_grid_az_dist(win->s->grid, win->his_grid, &az, &km))
       snprintf(info, sizeof info, "%s · %.0f km · %.0f°", win->his_grid, km, az);
     else if (win->his_grid[0]) snprintf(info, sizeof info, "%s", win->his_grid);
-    else snprintf(info, sizeof info, "grid unknown");
+    else if (!have_cty) snprintf(info, sizeof info, "grid unknown");
+    if (have_cty) {
+      size_t n = strlen(info);
+      snprintf(info + n, sizeof info - n, "%s%s", n ? " · " : "", ci.country);
+    }
   }
   ftx_qso_panel_set_info(win->qso, info);
   apply_decoder_params(win);
@@ -1039,7 +1049,8 @@ char *ftx_window_debug_info(FtxWindow *win)
     "TCI: %s:%d — %s%s%s%s\n"
     "Mode %s, Rx %d Hz, Tx %d Hz, depth %d, AP %s, range %d–%d Hz\n"
     "Config: %s\n"
-    "Data: %s",
+    "Data: %s\n"
+    "cty.dat: %s%s%s%s",
     FTX_VERSION,
     gtk_get_major_version(), gtk_get_minor_version(), gtk_get_micro_version(),
     adw_get_major_version(), adw_get_minor_version(), adw_get_micro_version(),
@@ -1052,7 +1063,9 @@ char *ftx_window_debug_info(FtxWindow *win)
     win->connected ? ftx_rx_engine_protocol(win->eng) : "",
     win->s->ft4 ? "FT4" : "FT8", win->s->rx_hz, win->s->tx_hz, win->s->depth, win->s->ap ? "on" : "off",
     win->s->nfa, win->s->nfb,
-    ftx_settings_path(), ftx_settings_data_dir());
+    ftx_settings_path(), ftx_settings_data_dir(),
+    win->cty ? "VER" : "not found", win->cty && ftx_cty_version(win->cty) ? ftx_cty_version(win->cty) : "",
+    win->cty ? " " : "", win->cty ? win->cty_path : "");
 }
 
 static gboolean on_close_request(GtkWindow *w, gpointer user)
@@ -1077,6 +1090,8 @@ static void ftx_window_dispose(GObject *obj)
   if (win->eng) { ftx_rx_engine_free(win->eng); win->eng = NULL; }
   if (win->all_txt) { fclose(win->all_txt); win->all_txt = NULL; }
   g_clear_pointer(&win->pc, g_free);
+  g_clear_pointer(&win->cty, ftx_cty_free);
+  g_clear_pointer(&win->cty_path, g_free);
   G_OBJECT_CLASS(ftx_window_parent_class)->dispose(obj);
 }
 
@@ -1091,6 +1106,14 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
 {
   FtxWindow *win = g_object_new(FTX_TYPE_WINDOW, "application", app, NULL);
   win->s = s;
+  win->cty_path = ftx_cty_locate();
+  if (win->cty_path) {
+    GError *err = NULL;
+    win->cty = ftx_cty_load(win->cty_path, &err);
+    if (win->cty) g_message("cty.dat %s (VER%s, %u entities)", win->cty_path,
+                            ftx_cty_version(win->cty) ? ftx_cty_version(win->cty) : "?", ftx_cty_n_entities(win->cty));
+    else { g_warning("cty.dat %s: %s", win->cty_path, err ? err->message : "parse failed"); g_clear_error(&err); }
+  } else g_warning("cty.dat not found — no country for the DX station");
   win->pc = g_new0(ftx_pack77_ctx, 1);
   ftx_pack77_init(win->pc);
   win->eng = ftx_rx_engine_new(g_main_context_default());

@@ -30,7 +30,8 @@ glib_dep = dependency('glib-2.0')
 lws_dep  = dependency('libwebsockets')
 src_inc  = include_directories('src')
 app_src  = files('src/app/tci_client.c', 'src/app/period.c')
-rx_src   = files('src/app/rx_engine.c', 'src/app/tx_engine.c', 'src/app/messages.c', 'src/app/settings.c')
+rx_src   = files('src/app/rx_engine.c', 'src/app/tx_engine.c', 'src/app/messages.c', 'src/app/settings.c',
+                 'src/app/cty.c')
 executable('ftx-record', ['src/ftx-record.c', app_src],
   include_directories : src_inc,
   dependencies : [glib_dep, lws_dep, m_dep],

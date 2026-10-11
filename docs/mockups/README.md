@@ -78,7 +78,9 @@ upper edge "looked like LSB") and use sdr-for-linux's passband colours and
 "Filter opacity" slider ("odstíny filtru udělej stejně jako má SDR"); the
 period line uses the same shades; the status bar values are plain white
 with sdr-for-linux's dim grey for what is inactive — no green ("hodnoty
-v patičce nemusí být zelené"), red stays for faults only.
+v patičce nemusí být zelené"), red stays for faults only; the partner line
+carries the DXCC entity from cty.dat after the grid, distance and bearing
+("KN07 · 7210 km · 48° · Hungary"; "hodila by se i informace o jakou jde zemi").
 
 ## Design decisions
 

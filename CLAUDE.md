@@ -340,4 +340,17 @@ Then: the status bar values are plain white, inactive items in sdr-for-linux's
 .dim grey (opacity 0.6), red only for faults (CLOCK OFF?, TCI disconnected);
 no green, no salmon ("hodnoty v patičce nemusí být zelené, tam můžou být
 normálně bílé, případně šedivé pro neaktivní") — CSS only, the state enum stays.
+Then: **the DX station's country** on the console's partner line ("hodila by se
+i informace o jakou jde zemi… do toho okna jak je lokátor, vzdálenost a azimut"):
+`src/app/cty.[ch]` is log-for-linux's `src/engine/cty.[ch]` (AD1C cty.dat parser,
+ftx_ prefix, logic untouched so fixes port by diff) with `data/cty.dat` +
+`cty.dat.LICENSE` (MIT, VER20260803, the snapshot log-for-linux ships, installed to
+`datadir/ftx-for-linux`); `ftx_cty_locate` prefers a user copy in
+`~/.local/share/ftx-for-linux/` then `~/.local/share/log-for-linux/` (one refreshed
+snapshot on the desk serves the family), then the system data dirs, then
+`<exe>/../data/cty.dat` (build-dir runs from any cwd — the live instance runs from
+/tmp/ftx-live).  Line format "KN07 · 7210 km · 48° · Hungary", country alone
+when the grid is unknown; About debug info lists the cty.dat version and path;
+gate `dev/tests/test_cty.c` (log-for-linux's cty_test with the sample as a vector
+file) → 80 gates.  The lists' country column still waits (not asked).
 

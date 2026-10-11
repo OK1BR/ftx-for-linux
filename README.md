@@ -30,6 +30,8 @@ Terrell Deppe, KJ5HST.
 Every ported file names its WSJT-X source file in its header. WSJT-X and
 this program are licensed under the GNU GPL v3 (or later); see
 [LICENSE](LICENSE).
+The country of a station comes from Jim Reisert AD1C's Amateur Radio
+Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
 
 ## Layout
 
