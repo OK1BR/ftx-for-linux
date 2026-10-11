@@ -336,4 +336,8 @@ COL_RX_FILL / COL_TX_FILL at 0.65 / 0.55 alpha; "moc svítí"), and Halt TX is
 a plain button — the salmon came from libadwaita's `destructive-action`
 class, which Richard's ok1br.css deliberately leaves alone (`:not(.destructive-action)`),
 not from our stylesheet.
+Then: the status bar values are plain white, inactive items in sdr-for-linux's
+.dim grey (opacity 0.6), red only for faults (CLOCK OFF?, TCI disconnected);
+no green, no salmon ("hodnoty v patičce nemusí být zelené, tam můžou být
+normálně bílé, případně šedivé pro neaktivní") — CSS only, the state enum stays.
 

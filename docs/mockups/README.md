@@ -75,7 +75,10 @@ report to send is shown, not edited ("v reálném provozu ho stejně nikdy
 neopravuji"); Esc = Halt TX anywhere in the window; the Rx/Tx passbands
 start at the base tone and extend upwards as USB reads (the Tx line on the
 upper edge "looked like LSB") and use sdr-for-linux's passband colours and
-"Filter opacity" slider ("odstíny filtru udělej stejně jako má SDR").
+"Filter opacity" slider ("odstíny filtru udělej stejně jako má SDR"); the
+period line uses the same shades; the status bar values are plain white
+with sdr-for-linux's dim grey for what is inactive — no green ("hodnoty
+v patičce nemusí být zelené"), red stays for faults only.
 
 ## Design decisions
 

@@ -37,7 +37,5 @@ button.txkey { font-weight: 700; }
 button.txkey:checked { background: #c8321e; color: #fff; }
 .statusbar { padding: 5px 12px; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
 .status.clock { font-family: "Adwaita Mono", monospace; font-size: 13px; font-weight: 700; }
-.status.ok { color: #6fe08a; }
-.status.tx { color: #ff9a8a; }
 .status.err { color: #ff6b6b; font-weight: 700; }
-.status.dim { opacity: 0.5; }
+.status.dim { opacity: 0.6; }  /* sdr-for-linux's .dim */
