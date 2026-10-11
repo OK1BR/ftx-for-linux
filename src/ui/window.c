@@ -50,6 +50,8 @@ struct _FtxWindow {
   FtxStdMsgs msgs;
 
   /* transmitting (WSJT-X names where they exist) */
+  gboolean radio_keyed;       /* trx or tune reported by the radio        */
+  gint64   unkeyed_at_us;     /* when it last unkeyed                     */
   gboolean tx_enabled;        /* m_auto                                   */
   gboolean transmitting;      /* keyed by us right now                    */
   gboolean tuning;
@@ -684,9 +686,15 @@ static void on_period(const FtxRxPeriod *p, gpointer user)
   win->last_nutc = p->nutc;
 }
 
+/* the waterfall pauses while the radio is keyed (what the RX chain delivers
+ * then is our own signal or a muted path, saturated rows) and for a moment
+ * after unkeying */
+#define WF_SETTLE_US (300 * G_TIME_SPAN_MILLISECOND)
 static void on_row(const float *db, guint nbins, double bin_hz, gint64 t_us, gpointer user)
 {
-  ftx_waterfall_push_row(FTX_WINDOW(user)->wf, db, nbins, bin_hz, t_us);
+  FtxWindow *win = user;
+  if (win->radio_keyed || t_us - win->unkeyed_at_us < WF_SETTLE_US) return;
+  ftx_waterfall_push_row(win->wf, db, nbins, bin_hz, t_us);
 }
 
 static void on_vfo(double hz, gpointer user)
@@ -703,7 +711,13 @@ static void set_audio_status(FtxWindow *win, gboolean tx)
   else ftx_status_bar_set_audio(win->sb, win->s->ft4 ? "● RX  FT4 · 12 kHz TCI audio" : "● RX  FT8 · 12 kHz TCI audio", FTX_STATUS_OK);
 }
 
-static void on_tx(gboolean tx, gpointer user) { set_audio_status(FTX_WINDOW(user), tx); }
+static void on_tx(gboolean tx, gpointer user)
+{
+  FtxWindow *win = user;
+  win->radio_keyed = tx;
+  if (!tx) win->unkeyed_at_us = g_get_real_time();
+  set_audio_status(win, tx);
+}
 
 static void set_tci_status(FtxWindow *win)
 {
