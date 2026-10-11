@@ -214,5 +214,18 @@ sequencer reacts on Auto sequence alone (WSJT-X also requires Enable TX —
 that gate comes with TX over TCI); decoding runs after the period ends (no
 early decode at 11.8 s yet); country/zones/B4 are blank until log-for-linux
 is linked. Next: Richard runs it live against sdr-for-linux and we tune from
-practice; then TX over TCI + logging; the live RX test against the real
-server has still never happened (server not running during this work).
+practice; then TX over TCI + logging.
+
+2026-10-11 (afternoon, live): Richard started sdr-for-linux; the GUI runs on
+his desktop against the real TCI server (127.0.0.1:40001, 12 kHz float
+audio), first live period decoded 13 FT4 stations at 14.080, DT ≈ 0.0–0.2 s.
+His station config was created at `~/.config/ftx-for-linux/config.ini`
+(OK1BR, JO70 — grid assumed, ALL.TXT on). Tuning from practice so far:
+preferences dialog 1000 px wide so the page tabs stay in the header
+(libadwaita drops them to a bottom bar when the switcher does not fit);
+the Tx1–Tx6 list and Auto sequence moved into a popover on the card's
+`TxN · Hz` button ("rarely skipped steps, almost never used it in WSJT-X").
+Headless testing note: the app is a unique GApplication — run test
+instances under `dbus-run-session`, or they just activate the live one.
+The live instance is relaunched from `/tmp/ftx-live` (log `app.log`) via
+`gapplication action cz.ok1br.ftx_for_linux quit` + start.

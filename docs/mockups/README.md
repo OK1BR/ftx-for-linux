@@ -63,6 +63,13 @@ auto-sequencer switch; the radio button marks what goes next. Tx frequency
 with Hold / Tx = Rx and the *Log QSO → log-for-linux* button close the panel.
 Everything is visible at 1480×920; nothing scrolls away.
 
+*Changed after the first live run (Richard, 2026-10-11):* the six standard
+messages are not something to look at all the time — the sequencer picks
+them ("málokdy jsem kroky přeskakoval, u WSJT-X jsem to skoro nepoužíval").
+The Tx1–Tx6 list and the Auto sequence switch moved into a popover under the
+card's `TxN · Hz` button; the panel keeps the partner row, the card, the
+four TX buttons and the Tx-frequency row.
+
 **Status bar = health, not decoration.** UTC clock and a period progress bar;
 clock health as the mean DT of the last decodes (FT8 needs the PC within about
 a second of UTC — the status turns red with `CLOCK OFF?` when the mean DT

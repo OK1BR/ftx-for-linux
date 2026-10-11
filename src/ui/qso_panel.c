@@ -9,7 +9,7 @@ struct _FtxQsoPanel {
   GtkWidget parent_instance;
   GtkWidget *scroller, *box;
   GtkWidget *dx_call, *dx_grid, *report, *received, *info;
-  GtkWidget *card, *card_state, *card_msg, *card_detail;
+  GtkWidget *card, *card_state, *card_msg, *card_menu;
   GtkWidget *enable, *halt, *tune, *cq, *auto_sw;
   GtkWidget *tx_row[6], *tx_radio[6], *tx_label[6], *tx_tag[6];
   GtkWidget *tx_hz, *hold, *tx_eq_rx, *log;
@@ -137,7 +137,10 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_label_set_wrap(GTK_LABEL(p->info), TRUE);
   gtk_box_append(GTK_BOX(p->box), p->info);
 
-  /* the card */
+  /* the card: what is on the air or goes out next; its TxN button opens the
+   * override popover with the six standard messages and the Auto sequence
+   * switch (the sequencer picks the message — the list is not something to
+   * look at all the time, Richard 2026-10-11) */
   p->card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
   gtk_widget_add_css_class(p->card, "nextcard");
   p->card_state = gtk_label_new("");
@@ -149,34 +152,16 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_label_set_xalign(GTK_LABEL(p->card_msg), 0);
   gtk_widget_set_hexpand(p->card_msg, TRUE);
   gtk_label_set_ellipsize(GTK_LABEL(p->card_msg), PANGO_ELLIPSIZE_END);
-  p->card_detail = gtk_label_new("");
-  gtk_widget_add_css_class(p->card_detail, "dim");
-  gtk_widget_add_css_class(p->card_detail, "mono");
-  gtk_box_append(GTK_BOX(nh), p->card_msg);
-  gtk_box_append(GTK_BOX(nh), p->card_detail);
-  gtk_box_append(GTK_BOX(p->card), p->card_state);
-  gtk_box_append(GTK_BOX(p->card), nh);
-  gtk_box_append(GTK_BOX(p->box), p->card);
-
-  /* TX controls */
-  GtkWidget *btns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-  p->enable = gtk_toggle_button_new_with_label("Enable TX");
-  gtk_widget_add_css_class(p->enable, "txkey");
-  gtk_widget_set_hexpand(p->enable, TRUE);
-  g_object_set_data(G_OBJECT(p->enable), "action", GINT_TO_POINTER(FTX_QSO_ACTION_ENABLE_TX));
-  g_signal_connect(p->enable, "toggled", G_CALLBACK(action), p);
-  p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, "destructive-action");
-  p->tune = button(p, "Tune", FTX_QSO_ACTION_TUNE, NULL);
-  p->cq = button(p, "Call CQ", FTX_QSO_ACTION_CALL_CQ, NULL);
-  gtk_box_append(GTK_BOX(btns), p->enable);
-  gtk_box_append(GTK_BOX(btns), p->halt);
-  gtk_box_append(GTK_BOX(btns), p->tune);
-  gtk_box_append(GTK_BOX(btns), p->cq);
-  gtk_box_append(GTK_BOX(p->box), btns);
-
-  /* the six messages */
+  p->card_menu = gtk_menu_button_new();
+  gtk_widget_add_css_class(p->card_menu, "flat");
+  gtk_widget_add_css_class(p->card_menu, "mono");
+  gtk_widget_set_valign(p->card_menu, GTK_ALIGN_CENTER);
+  gtk_widget_set_tooltip_text(p->card_menu, "Choose the message by hand, Auto sequence");
+  GtkWidget *pop = gtk_popover_new();
+  GtkWidget *pv = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+  gtk_widget_set_size_request(pv, 420, -1);
   GtkWidget *th = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-  GtkWidget *tt = gtk_label_new("Transmit");
+  GtkWidget *tt = gtk_label_new("Next message");
   gtk_widget_add_css_class(tt, "heading");
   gtk_label_set_xalign(GTK_LABEL(tt), 0);
   gtk_widget_set_hexpand(tt, TRUE);
@@ -188,7 +173,7 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_box_append(GTK_BOX(th), tt);
   gtk_box_append(GTK_BOX(th), al);
   gtk_box_append(GTK_BOX(th), p->auto_sw);
-  gtk_box_append(GTK_BOX(p->box), th);
+  gtk_box_append(GTK_BOX(pv), th);
   GtkWidget *list = gtk_list_box_new();
   gtk_list_box_set_selection_mode(GTK_LIST_BOX(list), GTK_SELECTION_NONE);
   gtk_widget_add_css_class(list, "boxed-list");
@@ -223,7 +208,30 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
     p->tx_row[i] = h;
     gtk_list_box_append(GTK_LIST_BOX(list), h);
   }
-  gtk_box_append(GTK_BOX(p->box), list);
+  gtk_box_append(GTK_BOX(pv), list);
+  gtk_popover_set_child(GTK_POPOVER(pop), pv);
+  gtk_menu_button_set_popover(GTK_MENU_BUTTON(p->card_menu), pop);
+  gtk_box_append(GTK_BOX(nh), p->card_msg);
+  gtk_box_append(GTK_BOX(nh), p->card_menu);
+  gtk_box_append(GTK_BOX(p->card), p->card_state);
+  gtk_box_append(GTK_BOX(p->card), nh);
+  gtk_box_append(GTK_BOX(p->box), p->card);
+
+  /* TX controls */
+  GtkWidget *btns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  p->enable = gtk_toggle_button_new_with_label("Enable TX");
+  gtk_widget_add_css_class(p->enable, "txkey");
+  gtk_widget_set_hexpand(p->enable, TRUE);
+  g_object_set_data(G_OBJECT(p->enable), "action", GINT_TO_POINTER(FTX_QSO_ACTION_ENABLE_TX));
+  g_signal_connect(p->enable, "toggled", G_CALLBACK(action), p);
+  p->halt = button(p, "Halt TX", FTX_QSO_ACTION_HALT_TX, "destructive-action");
+  p->tune = button(p, "Tune", FTX_QSO_ACTION_TUNE, NULL);
+  p->cq = button(p, "Call CQ", FTX_QSO_ACTION_CALL_CQ, NULL);
+  gtk_box_append(GTK_BOX(btns), p->enable);
+  gtk_box_append(GTK_BOX(btns), p->halt);
+  gtk_box_append(GTK_BOX(btns), p->tune);
+  gtk_box_append(GTK_BOX(btns), p->cq);
+  gtk_box_append(GTK_BOX(p->box), btns);
 
   /* Tx frequency, Hold, Tx = Rx, Log QSO */
   GtkWidget *fr = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
@@ -269,7 +277,7 @@ void ftx_qso_panel_set_card(FtxQsoPanel *p, const char *state, const char *messa
 {
   gtk_label_set_text(GTK_LABEL(p->card_state), state ? state : "");
   gtk_label_set_text(GTK_LABEL(p->card_msg), message ? message : "");
-  gtk_label_set_text(GTK_LABEL(p->card_detail), detail ? detail : "");
+  gtk_menu_button_set_label(GTK_MENU_BUTTON(p->card_menu), detail && detail[0] ? detail : "Tx");
   if (on_air) gtk_widget_add_css_class(p->card, "onair"); else gtk_widget_remove_css_class(p->card, "onair");
 }
 
