@@ -66,8 +66,10 @@ Everything is visible at 1480×920; nothing scrolls away.
 
 *Changed after the first live run (Richard, 2026-10-11):* three columns were
 not ergonomic and made the window too wide — the layout is now **one
-column**: the controls strip directly under the waterfall (row A: DX call,
-grid, report, received, what we know about him, Log QSO; row B: the
+column**: the controls strip directly under the waterfall (row A: the DX
+station as text — the program keeps his call and grid itself, typing them
+by hand for a sked lives in the card's popover —, report, received, Log QSO;
+row B: the
 transmission card, Tx frequency with Hold / Tx = Rx, Enable TX, Halt TX,
 Tune, Call CQ), and the two decode panes side by side beneath it; decode
 lines and status items ellipsize so the window can be narrow (fits 1024 px).

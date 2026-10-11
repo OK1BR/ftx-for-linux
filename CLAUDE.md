@@ -252,7 +252,10 @@ decodes print at 11.85 s into the period and the last 0.2 s after its end
 (before: all ≈ 2.5 s after).  Message set identical to ftx-decode.
 `FTX_RX_TIMING=1` prints per-stage times.  Waterfall labels are anchored
 10 s into the period (FT4 55 %) so early decodes do not slide; CQ labels
-no longer carry the "CQ" prefix (green says it).
+no longer carry the "CQ" prefix (green says it).  The DX call / DX grid
+entries are gone from the strip (Richard: the program can keep that in the
+background, the card shows whom I call) — row A shows the partner as text
+(call · grid · km · °); the entries live in the card's popover for a sked.
 Decodes carry jt9's AP marks (aN, "?") in the lists, the labels and ALL.TXT
 (two false "OK1BR … R MJ61"-style AP decodes on the air prompted it).
 
