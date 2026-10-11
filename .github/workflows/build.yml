@@ -1,7 +1,7 @@
 # CI — runs at release time only (family rule, Richard 2026-07-12: no CI on
 # every commit; the local gates cover development).  One job so far: build
-# libftx on ubuntu-26.04.  Packaging jobs (AppImage/.deb/.rpm) arrive with
-# the first installable app.
+# libftx, the CLI tools and the GTK4/libadwaita app on ubuntu-26.04.
+# Packaging jobs (AppImage/.deb/.rpm) arrive with the first installable app.
 name: build
 
 on:
@@ -12,7 +12,9 @@ on:
 
 env:
   DEBIAN_FRONTEND: noninteractive
-  APT_DEPS: meson ninja-build libfftw3-dev
+  # libftx: fftw3; app layer: glib, libwebsockets; GUI: gtk4 >= 4.12,
+  # libadwaita >= 1.5 (glib-compile-resources comes with libglib2.0-dev)
+  APT_DEPS: meson ninja-build libfftw3-dev libglib2.0-dev libwebsockets-dev libgtk-4-dev libadwaita-1-dev
 
 jobs:
   gates:

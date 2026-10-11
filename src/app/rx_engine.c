@@ -329,6 +329,11 @@ void ftx_rx_engine_free(FtxRxEngine *e)
 {
   if (!e) return;
   ftx_rx_engine_disconnect(e);
+  /* emits already queued on the consumer's context are dispatched after
+   * this returns: without callbacks they are no-ops (the engine itself lives
+   * on until the last of them is freed) */
+  e->decode_cb = NULL; e->period_cb = NULL; e->row_cb = NULL;
+  e->vfo_cb = NULL; e->tx_cb = NULL; e->closed_cb = NULL;
   engine_unref(e);
 }
 
