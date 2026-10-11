@@ -127,8 +127,11 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   AdwDialog *d = ADW_DIALOG(adw_preferences_dialog_new());
   g_object_set_data_full(G_OBJECT(d), "ctx", c, g_free);
   adw_dialog_set_title(d, "Preferences");
-  adw_dialog_set_content_width(d, 720);
-  adw_dialog_set_content_height(d, 800);
+  /* wide enough for the five page tabs to stay in the header bar under a
+   * large-font theme (libadwaita moves them to a bottom bar when the
+   * switcher does not fit); the sdr-for-linux size */
+  adw_dialog_set_content_width(d, 1000);
+  adw_dialog_set_content_height(d, 720);
   AdwPreferencesDialog *pd = ADW_PREFERENCES_DIALOG(d);
 
   AdwPreferencesPage *p = page(pd, "Station", "station", "avatar-default-symbolic");
