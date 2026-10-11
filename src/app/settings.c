@@ -43,7 +43,7 @@ void ftx_settings_defaults(FtxSettings *s)
   g_strlcpy(s->tci_host, "127.0.0.1", sizeof s->tci_host); s->tci_port = 40001; s->connect_at_start = TRUE;
   s->tx_level_pct = 90; s->check_mode = TRUE;
   s->depth = 3; s->ap = TRUE; s->nfa = 200; s->nfb = 4000; s->clock_warn_dt = 0.5; s->show_dt_health = TRUE;
-  s->palette = 0; s->rows_per_s = 4; s->wf_labels = TRUE;
+  s->palette = 0; s->rows_per_s = 8; s->wf_labels = TRUE;
   s->hl_cq = TRUE; s->dim_b4 = TRUE; s->keep_periods = 20;
   s->rx_hz = 1500; s->tx_hz = 1500; s->hold_tx = TRUE; s->tx_eq_rx = FALSE; s->auto_seq = TRUE; s->report = -10;
   s->win_w = 1480; s->win_h = 920; s->paned_pos = 300;

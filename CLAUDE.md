@@ -229,7 +229,9 @@ the waterfall palettes are the family table from sdr-for-linux's
 `waterfall.c` (Classic, Mono white, Mono green, Mono amber, Inferno, Turbo —
 same stops, same names, selectable in Preferences › Display); the spectrum
 strip above the waterfall is gone ("spektrum dej pryč úplně, nech tam jen
-vodopád"), only the frequency axis and the rows remain; 4 rows/s default.
+vodopád"), only the frequency axis and the rows remain; 8 rows/s default,
+1–10 selectable (the spectrum FFT hops 1024 samples, up to ~11 rows/s; the
+hop once kept the wrong sample count — fixed when 8 rows/s showed as 4).
 Decodes carry jt9's AP marks (aN, "?") in the lists, the labels and ALL.TXT
 (two false "OK1BR … R MJ61"-style AP decodes on the air prompted it).
 

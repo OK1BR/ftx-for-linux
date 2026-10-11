@@ -232,7 +232,7 @@ static void spectrum_feed(FtxRxEngine *e, const float *mono, guint n, guint rate
 {
   const int rps = g_atomic_int_get(&e->rps);
   if (rps <= 0) { e->sfill = 0; return; }
-  const int N = FTX_RX_SPECTRUM_NFFT, H = N / 2;
+  const int N = FTX_RX_SPECTRUM_NFFT, H = N / 4;      /* an FFT every 85 ms: rows up to ~11 per second */
   for (guint i = 0; i < n; i++) {
     e->sbuf[e->sfill++] = mono[i];
     if (e->sfill < N) continue;
@@ -242,8 +242,8 @@ static void spectrum_feed(FtxRxEngine *e, const float *mono, guint n, guint rate
     for (int k = 0; k < FTX_RX_SPECTRUM_NBINS; k++)
       e->sacc[k] += (double)e->sout[k][0] * e->sout[k][0] + (double)e->sout[k][1] * e->sout[k][1];
     e->snacc++;
-    memmove(e->sbuf, e->sbuf + H, (size_t)H * sizeof(float));
-    e->sfill = H;
+    memmove(e->sbuf, e->sbuf + H, (size_t)(N - H) * sizeof(float));   /* keep N-H, the next FFT after H new samples */
+    e->sfill = N - H;
     e->since_row += H;
     const long row_len = (long)rate / rps;
     if (e->since_row >= row_len) {

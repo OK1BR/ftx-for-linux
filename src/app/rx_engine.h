@@ -83,7 +83,7 @@ void     ftx_rx_engine_set_ft4(FtxRxEngine *e, gboolean ft4);
 gboolean ftx_rx_engine_get_ft4(FtxRxEngine *e);
 void     ftx_rx_engine_set_ft8_params(FtxRxEngine *e, const ftx_ft8_params *p);
 void     ftx_rx_engine_set_ft4_params(FtxRxEngine *e, const ftx_ft4_params *p);
-/* Spectrum rows per second (0 = none). */
+/* Spectrum rows per second (0 = none, up to about 11). */
 void     ftx_rx_engine_set_rows_per_second(FtxRxEngine *e, int rps);
 
 /* Connect to the TCI server and start the audio stream; blocks for the
