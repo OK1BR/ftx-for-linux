@@ -158,6 +158,7 @@ static void clear_decodes(FtxWindow *win)
   ftx_decode_list_set_note(win->band, "");        /* "21 decodes · 150500" was the old band's */
   ftx_waterfall_clear(win->wf);
   if (win->udp) ftx_wsjtx_udp_clear(win->udp);     /* WSJT-X: Clear when the Band Activity is erased */
+  if (win->b4) g_hash_table_remove_all(win->b4);  /* worked-before is per band and mode (Richard 2026-11-09) */
 }
 
 /* ---- log-for-linux over WSJT-X UDP ------------------------------------------- */

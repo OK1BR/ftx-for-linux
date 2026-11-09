@@ -489,3 +489,15 @@ transmitted message (mainwindow.cpp ~8153).  Fixed: `win->rpt_sent` is parsed
 from the message we send ("-05" / "R-05" → "-05"), cleared with a new DX or a
 new QSO, and log_qso prefers it over the console value.  Richard's live
 instance runs the previous build until he allows a restart.
+**Worked-before for every decode (2026-11-09 evening, Richard: "musíš vzít v
+úvahu jak pásmo, tak i mód… stanici pro FT4 aby šel udělat i na FT8… stejně
+ho můžeme mít na více pásmech")**: the verdict is per band AND mode.  FTX
+already sends a Decode per line; log-for-linux (commit in its repo, built and
+installed to ~/.local) now parses Decode, takes the sender call as
+decodedtext.cpp's tokens_re does, looks up `logfl_store_worked_b4` for
+(call, band from its last Status dial, mode from the Status) and answers a
+yellow Highlight only when `n_band_mode > 0`; its Status answer uses
+`n_band_mode` too (was `n_total`).  Verdicts are cached per call|band|mode
+and dropped on every log change.  FTX forgets `win->b4` on a band or mode
+change (clear_decodes).  Not yet seen live: Richard's log-for-linux must be
+restarted on the new binary first.
