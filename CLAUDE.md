@@ -406,5 +406,8 @@ mock's lsb, digu at +253 ms, header "18.100.000 · 17 m · DIGU"; FT8 → FT4 gi
 vfo 18104000 + digu; 160 m in FT4 toasts and reverts with no command; operator
 dial moves update the drop-down and send nothing back.  Preferences ›
 Frequencies rendered headless (the tab click worked with a 1 s settle).  81
-gates (new `dev/tests/test_bands.c`).  Not verified: the real radio (Richard's
-live instance was restarted on this build at 16:09 and reconnected).
+gates (new `dev/tests/test_bands.c`).  Verified live by Richard the same afternoon ("zkusil jsem přepnout jak pásmo tak
+režim a vypadá to, že to funguje"); the sdr-for-linux log shows the designed
+sequence on the real radio: band change 16:13:04.868 → band_apply opens the
+mic in voice mode (band-stack mode) → 242 ms later "capture closed — non-voice
+mode" as our DIGU lands.  Next: the first live TX test (Tune into a dummy load).
