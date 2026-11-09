@@ -61,7 +61,9 @@ jobs:
       - uses: actions/checkout@v7
       - name: Determine version (tag must match meson.build)
         run: |
-          MESON_VER=$(grep -Po "version : '\K[^']+" meson.build)
+          # the project() line only — the gtk4/libadwaita dependency lines
+          # carry a version : '>= …' constraint of their own
+          MESON_VER=$(grep -Pom1 "^\s+version : '\K[^']+" meson.build)
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             TAG_VER="${GITHUB_REF_NAME#v}"
             if [[ "$TAG_VER" != "$MESON_VER" ]]; then
