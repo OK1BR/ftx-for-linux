@@ -31,6 +31,15 @@ static void activate(GtkApplication *app, gpointer user)
   gtk_style_context_add_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(css),
                                              GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
   g_object_unref(css);
+  /* The decode lists have no surface of their own: they show the window
+   * background.  A theme imported from the user's gtk.css (USER priority)
+   * paints every `list` node and would win over the rule in style.css, so
+   * this one structural rule is loaded just above USER. */
+  GtkCssProvider *over = gtk_css_provider_new();
+  gtk_css_provider_load_from_string(over, "list.decodes { background: transparent; }");
+  gtk_style_context_add_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(over),
+                                             GTK_STYLE_PROVIDER_PRIORITY_USER + 1);
+  g_object_unref(over);
   GtkWidget *win = ftx_window_new(ADW_APPLICATION(app), &settings);
   gtk_window_present(GTK_WINDOW(win));
 }
