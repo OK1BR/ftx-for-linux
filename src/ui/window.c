@@ -43,6 +43,7 @@ struct _FtxWindow {
   gboolean        logger_replied;
   guint           logged_count;
   char            qso_call[16];  /* the QSO being worked (for time on / logged once) */
+  char            rpt_sent[8];   /* m_rptSent: the report in the message we transmitted */
   gint64          qso_on_us;     /* m_dateTimeQSOOn                                 */
   gboolean        qso_logged;
 
@@ -210,7 +211,8 @@ static void log_qso(FtxWindow *win, gboolean automatic)
   const gint64 now_s = g_get_real_time() / 1000000;
   const gboolean same = strcmp(win->qso_call, win->his_call) == 0 && win->qso_on_us > 0;
   char rpt[8], pwr[16] = "";
-  snprintf(rpt, sizeof rpt, "%+03d", ftx_qso_panel_get_report(win->qso));
+  if (win->rpt_sent[0]) g_strlcpy(rpt, win->rpt_sent, sizeof rpt);        /* what we transmitted */
+  else snprintf(rpt, sizeof rpt, "%+03d", ftx_qso_panel_get_report(win->qso));   /* nothing sent yet: the console */
   int w = win->connected ? ftx_rx_engine_drive(win->eng) : 0;
   if (w > 0) snprintf(pwr, sizeof pwr, "%d", w);
   int b = ftx_band_for_hz(win->dial_hz);
@@ -415,8 +417,9 @@ static void set_tx_hz(FtxWindow *win, int hz)
 
 static void set_dx(FtxWindow *win, const char *call, const char *grid)
 {
-  if (g_strcmp0(call ? call : "", win->his_call) != 0) {       /* another station: his report is not this one's */
+  if (g_strcmp0(call ? call : "", win->his_call) != 0) {       /* another station: the reports are not this one's */
     win->rpt_rcvd[0] = '\0';
+    win->rpt_sent[0] = '\0';
     ftx_qso_panel_set_received(win->qso, "");
   }
   g_strlcpy(win->his_call, call ? call : "", sizeof win->his_call);
@@ -581,6 +584,19 @@ static void start_transmission(FtxWindow *win, gint64 period_start_us)
     g_strlcpy(win->qso_call, win->his_call, sizeof win->qso_call);
     win->qso_on_us = period_start_us - (gint64)((win->ntx - 1) * period_s(win) * 1e6);
     win->qso_logged = FALSE;
+    win->rpt_sent[0] = '\0';
+  }
+  /* m_rptSent (mainwindow.cpp ~8153): the report is what went out in
+   * "HISCALL MYCALL -05" or "R-05", not the console value, which keeps
+   * following his signal within the QSO */
+  {
+    char **w = g_strsplit(sent, " ", 4);
+    if (w[0] && w[1] && w[2]) {
+      const char *r = w[2][0] == 'R' && (w[2][1] == '-' || w[2][1] == '+') ? w[2] + 1 : w[2];
+      char *end; long v = strtol(r, &end, 10);
+      if (r[0] && *end == '\0' && v >= -50 && v < 50) g_strlcpy(win->rpt_sent, r, sizeof win->rpt_sent);
+    }
+    g_strfreev(w);
   }
   send_status(win);
   /* the Rx-frequency pane shows our transmission as a Tx line, like WSJT-X */

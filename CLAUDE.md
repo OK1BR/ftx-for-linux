@@ -477,3 +477,15 @@ after the two fixes the rerun logged `sent -22 rcvd -15`, ADIF `<rst_rcvd:3>-15`
 loopback client).  Headless notes: gtk4-broadwayd can SIGABRT on a TCI
 reconnect (hence the mock's SIGHUP WAV switch instead of a restart), and a
 `pkill -f` pattern without `^` kills the test shell itself.
+**First QSO logged automatically on the air (2026-11-09 16:37–16:38 UTC):**
+Richard called LZ2TS (KN22) on 14.080 FT4, Tx1 three times, "OK1BR LZ2TS
+-07" → our "LZ2TS OK1BR R-05" → his RR73 → our 73 → QSO Logged landed in
+log-for-linux as id 629 (20m, 14.08071 = dial + 710 Hz, FT4, rcvd −07, 40 W
+from the radio's drive, ts 16:37:52 = the first Tx period).  One deviation
+seen: the logged sent report was −04 while we transmitted R-05 — the console
+report follows his signal within an FT8/FT4 QSO (mainwindow.cpp 9427 "Change
+report within a QSO", ours too), but WSJT-X logs `m_rptSent`, taken from the
+transmitted message (mainwindow.cpp ~8153).  Fixed: `win->rpt_sent` is parsed
+from the message we send ("-05" / "R-05" → "-05"), cleared with a new DX or a
+new QSO, and log_qso prefers it over the console value.  Richard's live
+instance runs the previous build until he allows a restart.
