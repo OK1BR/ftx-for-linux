@@ -59,6 +59,7 @@ gboolean    ftx_tci_client_trx(FtxTciClient *c);
 const char *ftx_tci_client_device(FtxTciClient *c);
 const char *ftx_tci_client_protocol(FtxTciClient *c);
 const char *ftx_tci_client_mode(FtxTciClient *c);     /* modulation:0,<mode> */
+int         ftx_tci_client_drive(FtxTciClient *c);    /* drive:0,<n> — watts in sdr-for-linux, 0 = unknown */
 
 G_END_DECLS
 

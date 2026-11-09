@@ -15,6 +15,7 @@
 #include "app/rx_engine.h"
 #include "app/tci_client.h"
 #include "app/tx_engine.h"
+#include "app/wsjtx_udp.h"
 #include "decode_list.h"
 #include "preferences.h"
 #include "qso_panel.h"
@@ -25,7 +26,8 @@
 enum { CALLING, REPLYING, REPORT, ROGER_REPORT, ROGERS, SIGNOFF };
 
 #define TX_UNAVAILABLE  "Not connected to the radio"
-#define LOG_UNAVAILABLE "Logging to log-for-linux comes with the next phase"
+#define LOG_UNAVAILABLE "Logging is off — Preferences › Logging"
+#define LOG_NO_QSO      "No QSO to log — double-click a decode first"
 
 struct _FtxWindow {
   AdwApplicationWindow parent_instance;
@@ -35,6 +37,14 @@ struct _FtxWindow {
   char           *cty_path;
   FtxTxEngine    *tx;
   ftx_pack77_ctx *pc;
+  FtxWsjtxUdp    *udp;           /* WSJT-X UDP to log-for-linux                    */
+  GHashTable     *b4;            /* calls the logger highlighted as worked before   */
+  char            udp_host_live[64]; int udp_port_live;   /* what the client runs with */
+  gboolean        logger_replied;
+  guint           logged_count;
+  char            qso_call[16];  /* the QSO being worked (for time on / logged once) */
+  gint64          qso_on_us;     /* m_dateTimeQSOOn                                 */
+  gboolean        qso_logged;
 
   GtkWidget *toasts, *dial, *modelab, *title, *band_dd, *mode_dd, *monitor_btn, *paned, *lists, *line;
   FtxWaterfall  *wf;
@@ -84,6 +94,8 @@ G_DEFINE_FINAL_TYPE(FtxWindow, ftx_window, ADW_TYPE_APPLICATION_WINDOW)
 
 static void gen_messages(FtxWindow *win);
 static void update_card(FtxWindow *win);
+static void halt_tx(FtxWindow *win);
+static void disable_tx(FtxWindow *win);
 
 /* ---- helpers --------------------------------------------------------------- */
 
@@ -144,6 +156,125 @@ static void clear_decodes(FtxWindow *win)
   ftx_decode_list_clear(win->rxl);
   ftx_decode_list_set_note(win->band, "");        /* "21 decodes · 150500" was the old band's */
   ftx_waterfall_clear(win->wf);
+  if (win->udp) ftx_wsjtx_udp_clear(win->udp);     /* WSJT-X: Clear when the Band Activity is erased */
+}
+
+/* ---- log-for-linux over WSJT-X UDP ------------------------------------------- */
+
+static void logger_status(FtxWindow *win)
+{
+  char buf[160];
+  if (!win->s->udp_enable) {
+    ftx_status_bar_set_logger(win->sb, "● logger off", FTX_STATUS_DIM);
+  } else if (!win->udp || !ftx_wsjtx_udp_running(win->udp)) {
+    ftx_status_bar_set_logger(win->sb, "● logger: UDP socket failed", FTX_STATUS_ERROR);
+  } else {
+    snprintf(buf, sizeof buf, "● log-for-linux %s:%d · %u logged%s", win->s->udp_host, win->s->udp_port,
+             win->logged_count, win->logger_replied ? "" : " · no reply yet");
+    ftx_status_bar_set_logger(win->sb, buf, win->logger_replied ? FTX_STATUS_OK : FTX_STATUS_DIM);
+  }
+}
+
+static void update_log_button(FtxWindow *win)
+{
+  gboolean ok = win->s->udp_enable && win->his_call[0];
+  ftx_qso_panel_set_log_available(win->qso, ok, win->s->udp_enable ? LOG_NO_QSO : LOG_UNAVAILABLE);
+}
+
+/* Status (type 1) as MessageClient::status_update; log-for-linux answers one
+ * with a Highlight for the DX call (worked before or new). */
+static void send_status(FtxWindow *win)
+{
+  if (!win->udp || !ftx_wsjtx_udp_running(win->udp)) return;
+  char rpt[8];
+  snprintf(rpt, sizeof rpt, "%+03d", ftx_qso_panel_get_report(win->qso));
+  const char *mode = win->s->ft4 ? "FT4" : "FT8";
+  FtxWsjtxStatus st = {
+    .dial_hz = (guint64)(win->dial_hz + 0.5), .mode = mode, .dx_call = win->his_call, .report = rpt, .tx_mode = mode,
+    .tx_enabled = win->tx_enabled, .transmitting = win->transmitting, .decoding = FALSE,
+    .rx_df = (guint32)win->s->rx_hz, .tx_df = (guint32)win->s->tx_hz,
+    .de_call = win->s->call, .de_grid = win->s->grid, .dx_grid = win->his_grid, .watchdog = FALSE,
+    .sub_mode = "", .fast_mode = FALSE, .special_op = 0, .freq_tol = 0xffffffffU,
+    .tr_period = (guint32)period_s(win), .config_name = "Default", .tx_message = win->msgs.tx[win->ntx - 1],
+  };
+  ftx_wsjtx_udp_status(win->udp, &st);
+}
+
+/* QSO Logged + Logged ADIF for the QSO on the console.  WSJT-X logs the dial
+ * plus the Tx audio offset as the frequency and the report in our Tx2/Tx3 as
+ * RST sent; time on is when our first message to him went out. */
+static void log_qso(FtxWindow *win, gboolean automatic)
+{
+  if (!win->his_call[0]) { toast(win, LOG_NO_QSO); return; }
+  if (!win->s->udp_enable || !win->udp || !ftx_wsjtx_udp_running(win->udp)) { toast(win, LOG_UNAVAILABLE); return; }
+  const gint64 now_s = g_get_real_time() / 1000000;
+  const gboolean same = strcmp(win->qso_call, win->his_call) == 0 && win->qso_on_us > 0;
+  char rpt[8], pwr[16] = "";
+  snprintf(rpt, sizeof rpt, "%+03d", ftx_qso_panel_get_report(win->qso));
+  int w = win->connected ? ftx_rx_engine_drive(win->eng) : 0;
+  if (w > 0) snprintf(pwr, sizeof pwr, "%d", w);
+  int b = ftx_band_for_hz(win->dial_hz);
+  const char *band = b >= 0 ? ftx_bands[b].key : "";
+  FtxWsjtxQso q = {
+    .on_s = same ? win->qso_on_us / 1000000 : now_s - (gint64)period_s(win), .off_s = now_s,
+    .dx_call = win->his_call, .dx_grid = win->his_grid,
+    .freq_hz = (guint64)(win->dial_hz + 0.5) + (guint64)win->s->tx_hz, .mode = win->s->ft4 ? "FT4" : "FT8",
+    .rst_sent = rpt, .rst_rcvd = win->rpt_rcvd, .tx_power = pwr, .comments = "", .name = "",
+    .op_call = "", .my_call = win->s->call, .my_grid = win->s->grid, .exch_sent = "", .exch_rcvd = "", .prop_mode = "",
+  };
+  ftx_wsjtx_udp_qso_logged(win->udp, &q, band);
+  win->qso_logged = TRUE;
+  win->logged_count++;
+  char t[120];
+  snprintf(t, sizeof t, "%s %s · %s · %s → log-for-linux", automatic ? "Logged" : "Log QSO:", win->his_call,
+           band[0] ? band : "?", q.mode);
+  toast(win, t);
+  logger_status(win);
+}
+
+/* log-for-linux's answer to a Status: yellow = worked before, green = new,
+ * an invalid colour clears (logfl_wsjtx_server_highlight_b4). */
+static void on_highlight(const char *call, gboolean bg_valid, const guint8 rgb[3], gboolean last_only, gpointer user)
+{
+  (void)last_only;
+  FtxWindow *win = user;
+  win->logger_replied = TRUE;
+  if (!call || !call[0] || strcmp(call, "CLEARALL!") == 0) { if (!call || !call[0] || call[0] == 'C') g_hash_table_remove_all(win->b4); logger_status(win); return; }
+  const gboolean greenish = bg_valid && rgb[1] > rgb[0] + 40 && rgb[1] > rgb[2] + 40;
+  if (bg_valid && !greenish) g_hash_table_add(win->b4, g_strdup(call));
+  else g_hash_table_remove(win->b4, call);
+  logger_status(win);
+}
+
+static void on_halt_request(gboolean auto_only, gpointer user)
+{
+  FtxWindow *win = user;
+  if (auto_only) disable_tx(win); else halt_tx(win);
+  toast(win, "Halt TX requested by the logger");
+}
+
+/* Start, restart or stop the UDP client to match Preferences › Logging. */
+static void logger_apply(FtxWindow *win)
+{
+  if (!win->udp) return;
+  const gboolean running = ftx_wsjtx_udp_running(win->udp);
+  const gboolean same = strcmp(win->udp_host_live, win->s->udp_host) == 0 && win->udp_port_live == win->s->udp_port;
+  if (win->s->udp_enable && (!running || !same)) {
+    GError *err = NULL;
+    win->logger_replied = FALSE;
+    if (!ftx_wsjtx_udp_start(win->udp, win->s->udp_host, (guint16)win->s->udp_port, &err)) {
+      g_warning("wsjtx udp: %s", err ? err->message : "start failed");
+      g_clear_error(&err);
+    } else {
+      g_strlcpy(win->udp_host_live, win->s->udp_host, sizeof win->udp_host_live);
+      win->udp_port_live = win->s->udp_port;
+      send_status(win);
+    }
+  } else if (!win->s->udp_enable && running) {
+    ftx_wsjtx_udp_stop(win->udp);
+  }
+  logger_status(win);
+  update_log_button(win);
 }
 
 /* ---- band switcher: tuning the radio over TCI ------------------------------ */
@@ -284,9 +415,15 @@ static void set_tx_hz(FtxWindow *win, int hz)
 
 static void set_dx(FtxWindow *win, const char *call, const char *grid)
 {
+  if (g_strcmp0(call ? call : "", win->his_call) != 0) {       /* another station: his report is not this one's */
+    win->rpt_rcvd[0] = '\0';
+    ftx_qso_panel_set_received(win->qso, "");
+  }
   g_strlcpy(win->his_call, call ? call : "", sizeof win->his_call);
   g_strlcpy(win->his_grid, grid ? grid : "", sizeof win->his_grid);
   ftx_qso_panel_set_dx(win->qso, win->his_call, win->his_grid);
+  update_log_button(win);
+  send_status(win);
   /* what we know about him: distance and bearing from the grids, the
    * country from the call prefix (cty.dat) */
   char info[200] = "";
@@ -437,6 +574,15 @@ static void start_transmission(FtxWindow *win, gint64 period_start_us)
   }
   g_strlcpy(win->tx_msg_now, sent, sizeof win->tx_msg_now);
   win->tx_ntx_now = win->ntx;
+  /* m_dateTimeQSOOn: the first message to him starts the QSO clock, backdated
+   * by the steps we skipped (now - (ntx-1)·TRperiod - seconds into the period) */
+  if (win->ntx != 6 && win->his_call[0] &&
+      (strcmp(win->qso_call, win->his_call) != 0 || (win->qso_logged && win->ntx <= 2))) {
+    g_strlcpy(win->qso_call, win->his_call, sizeof win->qso_call);
+    win->qso_on_us = period_start_us - (gint64)((win->ntx - 1) * period_s(win) * 1e6);
+    win->qso_logged = FALSE;
+  }
+  send_status(win);
   /* the Rx-frequency pane shows our transmission as a Tx line, like WSJT-X */
   FtxDecodeRow row;
   memset(&row, 0, sizeof row);
@@ -496,10 +642,12 @@ static void on_tx_state(gboolean transmitting, const char *info, gpointer user)
         disable_tx(win);
         toast(win, "73 sent — QSO complete, TX off");
       }
+      if (is_73 && win->progress != CALLING && win->s->auto_log && !win->qso_logged && win->his_call[0]) log_qso(win, TRUE);
       g_strlcpy(win->last_sent, win->tx_msg_now, sizeof win->last_sent);
     }
   }
   update_card(win);
+  send_status(win);
 }
 
 static void on_tune(FtxWindow *win, gboolean on)
@@ -672,7 +820,7 @@ static void process_message(FtxWindow *win, const FtxDecodeRow *d, gboolean doub
           set_ntx(win, 5);
         } else if (win->progress == ROGERS) {
           set_ntx(win, 6);
-          toast(win, "QSO complete — Log QSO comes with the TX phase");
+          toast(win, "QSO complete");
         } else {
           set_ntx(win, first);
           win->progress = first_progress;
@@ -725,10 +873,15 @@ static void process_message(FtxWindow *win, const FtxDecodeRow *d, gboolean doub
     g4[4] = '\0';
     if (strncmp(win->his_grid, g4, 4) != 0) set_dx(win, win->his_call, g4);
   }
-  if (double_clicked) {
-    char dxbase[16];
+  /* m_rptRcvd: a report in his message to us, whether we double-clicked or the
+   * sequencer took it; a message without one leaves the last report alone */
+  {
+    char dxbase[16], rpt[8];
     ftx_msg_base_call(win->his_call, dxbase, sizeof dxbase);
-    if (ftx_msg_report_in(win->pc, d->msg, mybase, dxbase, win->rpt_rcvd)) ftx_qso_panel_set_received(win->qso, win->rpt_rcvd);
+    if (ftx_msg_report_in(win->pc, d->msg, mybase, dxbase, rpt)) {
+      g_strlcpy(win->rpt_rcvd, rpt, sizeof win->rpt_rcvd);
+      ftx_qso_panel_set_received(win->qso, win->rpt_rcvd);
+    }
   }
   /* the report to send is his SNR; FT8/FT4 update it within the QSO too */
   int n = CLAMP(d->snr, -50, 49);
@@ -803,8 +956,15 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
   row.ft4 = d->ft4;
   row.nap = d->nap;
   row.qual = d->qual;
-  row.kind = for_us ? FTX_DECODE_TO_ME : (is_cq && win->s->hl_cq) ? FTX_DECODE_CQ : FTX_DECODE_PLAIN;
+  const gboolean b4 = w2[0] && g_hash_table_contains(win->b4, w2);
+  row.kind = for_us ? FTX_DECODE_TO_ME : (b4 && win->s->dim_b4) ? FTX_DECODE_B4 : (is_cq && win->s->hl_cq) ? FTX_DECODE_CQ : FTX_DECODE_PLAIN;
   ftx_decode_list_add(win->band, &row);
+  if (win->udp && ftx_wsjtx_udp_running(win->udp)) {
+    /* Decode (type 2): the period's UTC time, the jt9 mode letter, "?" decodes as low confidence */
+    const guint32 ms = (guint32)(((d->nutc / 10000) * 3600 + ((d->nutc / 100) % 100) * 60 + d->nutc % 100) * 1000);
+    ftx_wsjtx_udp_decode(win->udp, TRUE, ms, d->snr, d->dt, (guint32)(d->freq + 0.5f), d->ft4 ? "+" : "~", d->msg,
+                         d->nap != 0 && d->qual < 0.17f, FALSE);
+  }
   if (right) ftx_decode_list_add(win->rxl, &row);
 
   if (w2[0]) {
@@ -876,6 +1036,7 @@ static void on_vfo(double hz, gpointer user)
   win->cur_band = nb;
   update_dial(win);
   sync_band_dd(win);
+  send_status(win);
 }
 
 static void set_audio_status(FtxWindow *win, gboolean tx)
@@ -908,7 +1069,7 @@ static void set_tci_status(FtxWindow *win)
   } else {
     ftx_status_bar_set_tci(win->sb, "● TCI disconnected", FTX_STATUS_ERROR);
   }
-  ftx_status_bar_set_logger(win->sb, "● log-for-linux: not linked yet", FTX_STATUS_DIM);
+  logger_status(win);
 }
 
 static void on_radio_mode(const char *mode, gpointer user)
@@ -970,6 +1131,7 @@ static void connect_done(GObject *src, GAsyncResult *res, gpointer data)
   set_audio_status(win, win->connected && ftx_rx_engine_tx(win->eng));
   update_dial(win);
   sync_band_dd(win);
+  send_status(win);
 }
 
 static void do_connect(FtxWindow *win)
@@ -1015,6 +1177,7 @@ static void apply_mode(FtxWindow *win)
   ftx_waterfall_set_bandwidth(win->wf, bandwidth_hz(win));
   set_audio_status(win, win->connected && ftx_rx_engine_tx(win->eng));
   update_card(win);
+  send_status(win);
 }
 
 static void on_mode(GObject *dd, GParamSpec *ps, gpointer user)
@@ -1083,6 +1246,7 @@ static void on_qso_action(FtxQsoPanel *q, int action, gpointer user)
     win->tx_enabled = ftx_qso_panel_get_tx_enabled(q) && win->connected;
     if (win->tx_enabled) { win->watchdog_count = 0; win->tx_period_idx = -1; }
     update_card(win);
+    send_status(win);
     break;
   case FTX_QSO_ACTION_HALT_TX:
     halt_tx(win);
@@ -1090,8 +1254,10 @@ static void on_qso_action(FtxQsoPanel *q, int action, gpointer user)
   case FTX_QSO_ACTION_TUNE:
     on_tune(win, ftx_qso_panel_get_tune(q));
     break;
+  case FTX_QSO_ACTION_LOG_QSO:
+    log_qso(win, FALSE);
+    break;
   default:
-    toast(win, LOG_UNAVAILABLE);
     break;
   }
 }
@@ -1112,6 +1278,7 @@ static void apply_settings(FtxWindow *win)
   update_title(win);
   gen_messages(win);
   apply_decoder_params(win);
+  logger_apply(win);
 }
 
 static void on_prefs_changed(gpointer user)
@@ -1215,6 +1382,8 @@ static void ftx_window_dispose(GObject *obj)
   FtxWindow *win = FTX_WINDOW(obj);
   if (win->tick_id) { g_source_remove(win->tick_id); win->tick_id = 0; }
   cancel_digu(win);
+  g_clear_pointer(&win->udp, ftx_wsjtx_udp_free);     /* sends Close */
+  g_clear_pointer(&win->b4, g_hash_table_unref);
   if (win->tx) { ftx_tx_engine_free(win->tx); win->tx = NULL; }
   if (win->eng) { ftx_rx_engine_free(win->eng); win->eng = NULL; }
   if (win->all_txt) { fclose(win->all_txt); win->all_txt = NULL; }
@@ -1254,6 +1423,10 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   ftx_rx_engine_set_tx_cb(win->eng, on_tx, win);
   ftx_rx_engine_set_closed_cb(win->eng, on_closed, win);
   win->tx = ftx_tx_engine_new(g_main_context_default());
+  win->b4 = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  win->udp = ftx_wsjtx_udp_new("FTX for Linux", FTX_VERSION, "");
+  ftx_wsjtx_udp_set_highlight_cb(win->udp, on_highlight, win);
+  ftx_wsjtx_udp_set_halt_cb(win->udp, on_halt_request, win);
   ftx_tx_engine_set_state_cb(win->tx, on_tx_state, win);
   win->progress = CALLING;
   win->ntx = 6;
@@ -1374,7 +1547,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
 
   /* state from the settings */
   ftx_qso_panel_set_tx_available(win->qso, FALSE, TX_UNAVAILABLE);
-  ftx_qso_panel_set_log_available(win->qso, FALSE, LOG_UNAVAILABLE);
+  update_log_button(win);
   ftx_qso_panel_set_hold(win->qso, s->hold_tx);
   ftx_qso_panel_set_tx_eq_rx(win->qso, s->tx_eq_rx);
   ftx_qso_panel_set_auto_seq(win->qso, s->auto_seq);
@@ -1395,6 +1568,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   set_audio_status(win, FALSE);
   update_dial(win);
   win->cur_band = G_MININT;
+  logger_apply(win);
   win->tick_id = g_timeout_add(100, tick, win);
   tick(win);
   if (s->connect_at_start) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(win->monitor_btn), TRUE);

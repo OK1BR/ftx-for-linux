@@ -435,3 +435,45 @@ on the second CQ (−5 dB, DT −0.5) → the sequencer sent "G7BTP OK1BR -05" �
 after our RR73 (cease_auto_Tx_after_QSO).  Four overs of 16.8–16.9 W, 0 muted
 slots.  Richard: "hned to chytlo a udělalo se jedno QSO".  Logged by hand in
 log-for-linux (Log QSO is not linked yet) — the link is the next step.
+**log-for-linux link (2026-11-09 afternoon, Richard: "nemáme ještě napojení na
+log, tak mi to QSO prosím přenes… ať o něj nepřijdeme")**: the G7BTP QSO was
+first hand-sent as a WSJT-X "QSO Logged" datagram (Python) to log-for-linux
+on 127.0.0.1:2237 — accepted, id 628 in its log.db (main log, contest_ref 0)
+— and that datagram is now the gate vector
+`dev/tests/vectors/wsjtx_qso_logged_g7btp.bin`.  Then `src/app/wsjtx_udp.[ch]`
+(GLib/Gio): WSJT-X UDP schema 3 as MessageClient sends it — Heartbeat every
+15 s (`NetworkMessage::pulse`), Status on every change (dial, mode, DX, TX
+enable, keyed, period), Decode per decode (period time as QTime ms, jt9 mode
+letter `~`/`+`, "?" decodes as low confidence), Clear with Clear decodes,
+QSO Logged + Logged ADIF (`\n<adif_ver:5>3.1.0\n<programid:13>FTX for
+Linux\n<EOH>\n` + LogBook::QSOToADIF record + ` <EOR>`; FT4 = MFSK/submode),
+Close on quit; incoming Highlight Callsign (log-for-linux answers a Status
+that names a DX with yellow = worked before / green = new → `win->b4`, decode
+kind B4 under `dim_b4`) and Halt Tx.  Frequency = dial + Tx audio offset
+(mainwindow.cpp `m_freqNominal + TxFreqSpinBox`), RST sent = the report on the
+console (m_rptSent), time on = first transmission to him backdated by
+(ntx−1)·TRperiod (m_dateTimeQSOOn), TX power = the radio's `drive:0,<W>`
+(sdr-for-linux sends watts; `ftx_tci_client_drive`).  Logging fires when our
+73/RR73 has gone out and progress ≠ CALLING (mainwindow.cpp ~8113, once per
+QSO via `qso_logged`; `auto_log`, default on); Log QSO on the console logs by
+hand any time (`LOG_NO_QSO` until a DX is set).  Settings `[logging]
+udp_enable/udp_host/udp_port/auto_log`, Preferences › Logging › log-for-linux,
+status bar "● log-for-linux host:port · N logged (· no reply yet)".  Two bugs
+found by the headless run: the received report was stored only on
+double-click (the sequencer path left `rst_rcvd` empty — now m_rptRcvd in both
+paths, a message without a report leaves it alone) and it was never cleared
+when the DX changed (set_dx clears it).  Known limit: log-for-linux
+highlights only the Status DX call, so B4 marks only the partner; per-decode
+worked-before needs a log-for-linux change (it would answer Decode messages).
+Verified headless against a fake WSJT-X UDP server (`dev/tools/wsjtx_fakelog.py`,
+port 22370 so Richard's live log-for-linux on 2237 stays untouched): heartbeat
+and Status at start, Status with DX after a double-click → Highlight back →
+"linked"; Log QSO → QSO Logged HA0DU KN07 14075500 FT8 sent −14 + ADIF;
+auto-log: mock switched by SIGHUP to sim_ap4 ("K1JT HA0DU R-15", AP) → the
+sequencer sent Tx2 then RR73 (12.92 s captured) → QSO Logged on 16:08:30
+(= first Tx period − 15 s) off 16:09:28, "73 sent — QSO complete, TX off";
+after the two fixes the rerun logged `sent -22 rcvd -15`, ADIF `<rst_rcvd:3>-15`.
+82 gates (new `test_wsjtx_udp`: vector, Julian days, ADIF, Highlight parse,
+loopback client).  Headless notes: gtk4-broadwayd can SIGABRT on a TCI
+reconnect (hence the mock's SIGHUP WAV switch instead of a restart), and a
+`pkill -f` pattern without `^` kills the test shell itself.

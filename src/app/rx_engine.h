@@ -101,6 +101,7 @@ gboolean    ftx_rx_engine_tx(FtxRxEngine *e);
 const char *ftx_rx_engine_device(FtxRxEngine *e);
 const char *ftx_rx_engine_protocol(FtxRxEngine *e);
 const char *ftx_rx_engine_mode(FtxRxEngine *e);
+int         ftx_rx_engine_drive(FtxRxEngine *e);      /* the radio's drive (W), 0 = unknown */
 void        ftx_rx_engine_counters(FtxRxEngine *e, int *periods, int *decodes, int *skipped_keyed,
                                    int *skipped_gap, guint *reanchors);
 

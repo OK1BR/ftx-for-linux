@@ -47,6 +47,10 @@ typedef struct {
   gboolean follow_new;      /* lists: jump to the newest period on every decode */
   /* [logging] */
   gboolean all_txt;         /* write ALL.TXT                                */
+  gboolean udp_enable;      /* speak WSJT-X UDP to the logger (log-for-linux) */
+  char     udp_host[64];
+  int      udp_port;        /* 2237                                          */
+  gboolean auto_log;        /* log the QSO when our 73 / RR73 has gone out   */
   /* [state] — operating state remembered across runs */
   gboolean ft4;
   int      rx_hz, tx_hz;

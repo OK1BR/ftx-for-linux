@@ -269,6 +269,11 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   g = group(p, "ALL.TXT", dir);
   g_free(dir);
   sw(c, g, "Write ALL.TXT", "WSJT-X compatible text log of every decode", &s->all_txt);
+  g = group(p, "log-for-linux", "FTX speaks the WSJT-X UDP protocol (schema 3) log-for-linux listens to: heartbeat, status, every decode, and the finished QSO as QSO Logged + ADIF.  The logger's worked-before answers mark B4.  Changes take effect at once.");
+  sw(c, g, "Send to the logger", NULL, &s->udp_enable);
+  entry(c, g, "Host", s->udp_host, sizeof s->udp_host);
+  spin(c, g, "Port", "WSJT-X default 2237", 1, 65535, 1, 0, &s->udp_port, NULL);
+  sw(c, g, "Log the QSO automatically", "when our 73 or RR73 has gone out; Log QSO on the console logs by hand any time", &s->auto_log);
 
   p = page(pd, "Display", "display", "preferences-desktop-display-symbolic");
   g = group(p, "Waterfall", NULL);

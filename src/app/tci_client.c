@@ -38,6 +38,7 @@ struct _FtxTciClient {
   gboolean up, ready, failed;
   GQueue   out;               /* outgoing messages (struct outmsg*)          */
   double   vfo_hz;
+  int      drive;
   gboolean trx, tune;
   guint    rate_req, rate_ack;
   char     device[64], protocol[64], mode[32];
@@ -148,6 +149,9 @@ static void handle_command(FtxTciClient *c, char *cmd)
         vfo_cb = c->vfo_cb; vfo_user = c->vfo_cb_data; vfo_hz = hz;
       }
     }
+  } else if (strcmp(cmd, "drive") == 0 && args) {
+    char *comma = strchr(args, ',');            /* drive:<trx>,<n> */
+    if (comma && strtol(args, NULL, 10) == 0) c->drive = (int)strtol(comma + 1, NULL, 10);
   } else if (strcmp(cmd, "audio_samplerate") == 0 && args) {
     long r = strtol(args, NULL, 10);
     if (r > 0) c->rate_ack = (guint)r;
@@ -457,6 +461,7 @@ void ftx_tci_client_stop(FtxTciClient *c)
 }
 
 double ftx_tci_client_vfo_hz(FtxTciClient *c) { g_mutex_lock(&c->lock); double v = c->vfo_hz; g_mutex_unlock(&c->lock); return v; }
+int    ftx_tci_client_drive(FtxTciClient *c) { g_mutex_lock(&c->lock); int v = c->drive; g_mutex_unlock(&c->lock); return v; }
 gboolean ftx_tci_client_tx(FtxTciClient *c) { g_mutex_lock(&c->lock); gboolean v = c->trx || c->tune; g_mutex_unlock(&c->lock); return v; }
 gboolean ftx_tci_client_trx(FtxTciClient *c) { g_mutex_lock(&c->lock); gboolean v = c->trx; g_mutex_unlock(&c->lock); return v; }
 const char *ftx_tci_client_device(FtxTciClient *c) { return c->device; }

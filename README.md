@@ -7,17 +7,20 @@ member of the OK1BR family ([sdr-for-linux](https://github.com/OK1BR/sdr-for-lin
 [icom-for-linux](https://github.com/OK1BR/icom-for-linux)). The radio link is
 TCI only.
 
-> **Status: decoders done, GUI in progress (RX only).** The FT8 and FT4
+> **Status: on the air.** The FT8 and FT4
 > decoders (candidate search, demodulation, LDPC/OSD, a-priori decoding,
 > multi-pass subtraction, WSJT-X's a7/a8 decodes) are ported from WSJT-X and
 > reproduce its decodes bit for bit on the reference recordings. The
 > `ftx-for-linux` window works a TCI radio: labelled waterfall, Band activity
 > and Rx frequency lists, a QSO panel with the WSJT-X auto-sequencer, and
 > transmitting over TCI (the FT8/FT4 waveform exactly as WSJT-X sends it,
-> streamed as TX audio with WSJT-X's timing; Tune tone). CLI tools:
-> `ftx-decode` (WAV files), `ftx-rx` (live, text), `ftx-record`. Not yet:
-> logging to log-for-linux. Follow [docs/PORT-MAP.md](docs/PORT-MAP.md) for
-> the module list.
+> streamed as TX audio with WSJT-X's timing; Tune tone), a band switcher
+> that tunes the radio to the working frequency in DIGU, and logging to
+> log-for-linux over the WSJT-X UDP protocol (the QSO goes out as QSO Logged
+> + ADIF when our 73 has been sent). First QSO with it: 2026-11-09, 14.080
+> FT4. CLI tools: `ftx-decode` (WAV files), `ftx-rx` (live, text),
+> `ftx-record`. Follow [docs/PORT-MAP.md](docs/PORT-MAP.md) for the module
+> list.
 
 ## Provenance
 
@@ -53,7 +56,9 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   waveform paced in real time, Tune), the standard messages and
   decoded-text helpers ported from WSJT-X's `mainwindow.cpp`/`decodedtext.cpp`,
   settings (`~/.config/ftx-for-linux/config.ini`), the band table with the
-  WSJT-X default working frequencies (`bands.c`).
+  WSJT-X default working frequencies (`bands.c`), and the WSJT-X UDP client
+  (`wsjtx_udp.c`: Heartbeat, Status, Decode, Clear, QSO Logged, Logged ADIF,
+  Close; Highlight Callsign and Halt Tx back) that log-for-linux listens to.
 - `src/ui/` — the GTK4/libadwaita application `ftx-for-linux`: header bar
   with the radio's dial and mode, the band switcher (tunes the radio over
   TCI to the mode's working frequency — WSJT-X's defaults, editable in
@@ -63,7 +68,10 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   period tags, Rx/Tx brackets; click = Rx, right click = Tx), the two decode
   panes as in WSJT-X, the QSO panel (partner, the transmission card, Tx1–Tx6,
   auto-sequencer), the status bar (UTC, period, clock health from the mean
-  DT, TCI link). Double-click a decode to answer it, as in WSJT-X.
+  DT, TCI link, logger). Double-click a decode to answer it, as in WSJT-X.
+  Log QSO sends the QSO to log-for-linux (WSJT-X UDP, 127.0.0.1:2237 by
+  default), automatically once our 73 or RR73 has gone out; the logger's
+  worked-before answers mark B4.
   Optionally writes a WSJT-X compatible `ALL.TXT`
   (`~/.local/share/ftx-for-linux/`). Design notes in
   [docs/mockups/README.md](docs/mockups/README.md).

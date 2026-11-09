@@ -508,6 +508,7 @@ gboolean    ftx_rx_engine_tx(FtxRxEngine *e)        { return e->tci ? ftx_tci_cl
 const char *ftx_rx_engine_device(FtxRxEngine *e)    { return e->tci ? ftx_tci_client_device(e->tci) : ""; }
 const char *ftx_rx_engine_protocol(FtxRxEngine *e)  { return e->tci ? ftx_tci_client_protocol(e->tci) : ""; }
 const char *ftx_rx_engine_mode(FtxRxEngine *e)      { return e->tci ? ftx_tci_client_mode(e->tci) : ""; }
+int         ftx_rx_engine_drive(FtxRxEngine *e)     { return e->tci ? ftx_tci_client_drive(e->tci) : 0; }
 
 void ftx_rx_engine_counters(FtxRxEngine *e, int *periods, int *decodes, int *skipped_keyed, int *skipped_gap, guint *reanchors)
 {
