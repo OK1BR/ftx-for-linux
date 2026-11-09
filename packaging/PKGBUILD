@@ -16,7 +16,7 @@ depends=('gtk4' 'libadwaita' 'glib2' 'fftw' 'libwebsockets')
 # tools at meson-configure time even though DESTDIR skips the actual refresh.
 makedepends=('meson' 'desktop-file-utils' 'gtk-update-icon-cache')
 source=("$pkgname-$_pkgtag.tar.gz::$url/archive/refs/tags/v$_pkgtag.tar.gz")
-sha256sums=('71cbcea5a21ea9e3821614e576100721658853a7cc6a4602fe5c355c3b3c91a5')
+sha256sums=('88fce89b7d1415d8f131e8b7204bc5c7cd10d86cab9df224ed7daedf12e68cf0')
 
 build() {
   arch-meson "$pkgname-$_pkgtag" build
