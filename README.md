@@ -95,9 +95,11 @@ prebuilt packages for every release:
   run. Everything bundled, nothing to install.
 - **Ubuntu 26.04+**: `sudo apt install ./ftx-for-linux_*.deb`
 - **Fedora 44+**: `sudo dnf install ./ftx-for-linux-*.rpm`
-- **Arch Linux**: the tagged release builds from source through the
-  [PKGBUILD](packaging/PKGBUILD) (`makepkg -si` in a copy of `packaging/`);
-  an AUR package follows.
+- **Arch Linux (AUR)** — [`ftx-for-linux`](https://aur.archlinux.org/packages/ftx-for-linux):
+  `paru -S ftx-for-linux` (or `yay -S ftx-for-linux`). Builds the tagged
+  release from source through the [PKGBUILD](packaging/PKGBUILD); without a
+  helper: `git clone https://aur.archlinux.org/ftx-for-linux.git && cd
+  ftx-for-linux && makepkg -si`
 
 Both distro packages are install-tested in clean containers before they are
 attached to a release.

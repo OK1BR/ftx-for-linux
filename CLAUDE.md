@@ -587,3 +587,15 @@ public AppImage embeds 0.1.0 and runs here.  PKGBUILD sha256 recomputed
 after the move (9d12ccb; the tarball verified to carry the fix).  ~/.local
 refreshed to 0.1.0.  Not done: the AUR package (new for FTX, separate
 consent); the live instance still runs from the build tree.
+
+**AUR package created the same evening (Richard: "ano", then a second "ano"
+after the classifier blocked the push as "Create Public Surface")**:
+https://aur.archlinux.org/packages/ftx-for-linux — `PKGBUILD` + `.SRCINFO`
+(`makepkg --printsrcinfo`) pushed to ssh://aur@aur.archlinux.org/ftx-for-linux.git
+(master, 6c40c56; ~/.ssh/config already carried the aur host with
+`aur_ed25519`); a full `makepkg -C -f` from the tagged tarball passed first
+(sha verified by makepkg, package built, namcap clean).  The package page
+showed 0.1.0-1 at once; the RPC index lagged.  Release checklist for every
+later tag: bump `_pkgtag`/`pkgver`, `updpkgsums`, full makepkg, regenerate
+`.SRCINFO`, push to the AUR repo with Richard's explicit OK.  README › Install
+now points at the AUR package.
