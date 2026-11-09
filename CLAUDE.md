@@ -528,3 +528,12 @@ partner line keeps the full entity name.  Verified headless against the mock
 JO41 … Germany", the rest bare; with 2 every line (Spain, Hungary, Crete,
 Germany) with the → me tags after the country.  Vectors for the abbreviations
 in `test_messages`; 82 gates green.
+
+**Icon (2026-11-09 evening, Richard: "ještě nemáme ani vhodnou ikonku" → "jo
+asi může být")**: the first icon's small tone cells did not read as FT8 at any
+size.  New `data/cz.ok1br.ftx_for_linux.svg` in the family language (sdr /
+skimmer / log: Papirus plate #4f4f4f, 4 px white strokes, green #4caf50
+accent): a bold FSK trace stepping between the tones over time, the green Rx
+bracket beneath; the symbolic icon is the same trace in a 2 px stroke like
+sdr-for-linux's.  Proposal rendered beside the family icons at 256/48/16 px
+and approved before it went in.  Install to ~/.local is the next step.
