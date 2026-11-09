@@ -39,6 +39,7 @@ struct _FtxWindow {
   ftx_pack77_ctx *pc;
   FtxWsjtxUdp    *udp;           /* WSJT-X UDP to log-for-linux                    */
   GHashTable     *b4;            /* calls the logger highlighted as worked before   */
+  GHashTable     *newdx;         /* calls the logger highlighted as a new DXCC entity */
   char            udp_host_live[64]; int udp_port_live;   /* what the client runs with */
   gboolean        logger_replied;
   guint           logged_count;
@@ -159,6 +160,7 @@ static void clear_decodes(FtxWindow *win)
   ftx_waterfall_clear(win->wf);
   if (win->udp) ftx_wsjtx_udp_clear(win->udp);     /* WSJT-X: Clear when the Band Activity is erased */
   if (win->b4) g_hash_table_remove_all(win->b4);  /* worked-before is per band and mode (Richard 2026-11-09) */
+  if (win->newdx) g_hash_table_remove_all(win->newdx);
 }
 
 /* ---- log-for-linux over WSJT-X UDP ------------------------------------------- */
@@ -235,17 +237,37 @@ static void log_qso(FtxWindow *win, gboolean automatic)
   logger_status(win);
 }
 
-/* log-for-linux's answer to a Status: yellow = worked before, green = new,
- * an invalid colour clears (logfl_wsjtx_server_highlight_b4). */
+/* log-for-linux's answer to a Status or a Decode: yellow = worked before on
+ * this band and mode, magenta (WSJT-X's "New DXCC") = the station's entity is
+ * new on this band and mode, green = a new call, an invalid colour clears.
+ * The verdict for a Decode arrives after its line was added, so the lines of
+ * the running period are marked here; later periods read the sets. */
 static void on_highlight(const char *call, gboolean bg_valid, const guint8 rgb[3], gboolean last_only, gpointer user)
 {
   (void)last_only;
   FtxWindow *win = user;
   win->logger_replied = TRUE;
-  if (!call || !call[0] || strcmp(call, "CLEARALL!") == 0) { if (!call || !call[0] || call[0] == 'C') g_hash_table_remove_all(win->b4); logger_status(win); return; }
+  if (!call || !call[0] || strcmp(call, "CLEARALL!") == 0) {
+    if (!call || !call[0] || call[0] == 'C') { g_hash_table_remove_all(win->b4); g_hash_table_remove_all(win->newdx); }
+    logger_status(win);
+    return;
+  }
   const gboolean greenish = bg_valid && rgb[1] > rgb[0] + 40 && rgb[1] > rgb[2] + 40;
-  if (bg_valid && !greenish) g_hash_table_add(win->b4, g_strdup(call));
-  else g_hash_table_remove(win->b4, call);
+  const gboolean magenta = bg_valid && rgb[0] > rgb[1] + 40 && rgb[2] > rgb[1] + 40;
+  if (magenta) {
+    g_hash_table_add(win->newdx, g_strdup(call));
+    g_hash_table_remove(win->b4, call);
+  } else if (bg_valid && !greenish) {
+    g_hash_table_add(win->b4, g_strdup(call));
+    g_hash_table_remove(win->newdx, call);
+  } else {
+    g_hash_table_remove(win->b4, call);
+    if (!bg_valid) g_hash_table_remove(win->newdx, call);     /* green speaks of the call, not of its country */
+  }
+  const gboolean b4 = win->s->dim_b4 && g_hash_table_contains(win->b4, call);
+  const gboolean nd = win->s->tag_dxcc && g_hash_table_contains(win->newdx, call);
+  ftx_decode_list_mark(win->band, call, b4, nd);
+  ftx_decode_list_mark(win->rxl, call, b4, nd);
   logger_status(win);
 }
 
@@ -981,6 +1003,8 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
     if (ftx_cty_lookup(win->cty, w2, &ci)) ftx_msg_country_short(ci.country, row.country, sizeof row.country);
   }
   const gboolean b4 = w2[0] && g_hash_table_contains(win->b4, w2);
+  g_strlcpy(row.de, w2, sizeof row.de);
+  row.new_dxcc = win->s->tag_dxcc && w2[0] && g_hash_table_contains(win->newdx, w2);
   row.kind = for_us ? FTX_DECODE_TO_ME : (b4 && win->s->dim_b4) ? FTX_DECODE_B4 : (is_cq && win->s->hl_cq) ? FTX_DECODE_CQ : FTX_DECODE_PLAIN;
   ftx_decode_list_add(win->band, &row);
   if (win->udp && ftx_wsjtx_udp_running(win->udp)) {
@@ -1411,6 +1435,7 @@ static void ftx_window_dispose(GObject *obj)
   cancel_digu(win);
   g_clear_pointer(&win->udp, ftx_wsjtx_udp_free);     /* sends Close */
   g_clear_pointer(&win->b4, g_hash_table_unref);
+  g_clear_pointer(&win->newdx, g_hash_table_unref);
   if (win->tx) { ftx_tx_engine_free(win->tx); win->tx = NULL; }
   if (win->eng) { ftx_rx_engine_free(win->eng); win->eng = NULL; }
   if (win->all_txt) { fclose(win->all_txt); win->all_txt = NULL; }
@@ -1451,6 +1476,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   ftx_rx_engine_set_closed_cb(win->eng, on_closed, win);
   win->tx = ftx_tx_engine_new(g_main_context_default());
   win->b4 = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  win->newdx = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
   win->udp = ftx_wsjtx_udp_new("FTX for Linux", FTX_VERSION, "");
   ftx_wsjtx_udp_set_highlight_cb(win->udp, on_highlight, win);
   ftx_wsjtx_udp_set_halt_cb(win->udp, on_halt_request, win);

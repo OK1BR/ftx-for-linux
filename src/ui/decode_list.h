@@ -29,6 +29,8 @@ typedef struct {
   int   nap;        /* a-priori type used (0 = none), shown as "aN" like jt9 */
   float qual;       /* AP quality; < 0.17 = low confidence, jt9's "?"       */
   char  country[24]; /* the DE station's country, dim after the message; "" = none */
+  char  de[16];      /* the DE station's call, for marks that arrive after the line */
+  gboolean new_dxcc; /* the logger says its DXCC entity is new on this band and mode */
 } FtxDecodeRow;
 
 GtkWidget *ftx_decode_list_new(const char *title);
@@ -39,6 +41,10 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *row);
 /* Drop the oldest periods beyond keep. */
 void ftx_decode_list_prune(FtxDecodeList *l, int keep_periods);
 void ftx_decode_list_clear(FtxDecodeList *l);
+/* A verdict from the logger for a call, arriving after its line was added:
+ * the lines of the newest period whose DE call it is are redrawn — b4 turns a
+ * plain or CQ line into a B4 one, new_dxcc sets or takes back the DXCC tag. */
+void ftx_decode_list_mark(FtxDecodeList *l, const char *de_call, gboolean b4, gboolean new_dxcc);
 /* Order of the periods; switching rebuilds the pane from its history. */
 void ftx_decode_list_set_order(FtxDecodeList *l, gboolean newest_first);
 /* TRUE: every new line scrolls the pane to the newest period (the top when

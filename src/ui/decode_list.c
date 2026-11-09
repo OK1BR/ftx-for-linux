@@ -61,7 +61,7 @@ static GtkWidget *separator_row(void)
   return row;
 }
 
-static GtkWidget *make_row(const FtxDecodeRow *d)
+static GtkWidget *make_box(const FtxDecodeRow *d)
 {
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   gtk_widget_add_css_class(box, "decode");
@@ -105,8 +105,18 @@ static GtkWidget *make_row(const FtxDecodeRow *d)
     GtkWidget *t = gtk_label_new("→ me"); gtk_widget_add_css_class(t, "tag"); gtk_widget_add_css_class(t, "tag-me");
     gtk_box_append(GTK_BOX(box), t);
   }
+  if (d->new_dxcc && d->kind != FTX_DECODE_B4 && d->kind != FTX_DECODE_TX) {
+    GtkWidget *t = gtk_label_new("DXCC"); gtk_widget_add_css_class(t, "tag"); gtk_widget_add_css_class(t, "tag-dxcc");
+    gtk_widget_set_tooltip_text(t, "New DXCC entity on this band and mode (not in the log)");
+    gtk_box_append(GTK_BOX(box), t);
+  }
+  return box;
+}
+
+static GtkWidget *make_row(const FtxDecodeRow *d)
+{
   GtkWidget *row = gtk_list_box_row_new();
-  gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), box);
+  gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), make_box(d));
   g_object_set_data_full(G_OBJECT(row), "decode", g_memdup2(d, sizeof *d), g_free);
   return row;
 }
@@ -139,6 +149,29 @@ void ftx_decode_list_add(FtxDecodeList *l, const FtxDecodeRow *d)
 {
   g_array_append_vals(l->hist, d, 1);
   insert_row(l, d);
+}
+
+static gboolean apply_mark(FtxDecodeRow *d, gboolean b4, gboolean new_dxcc)
+{
+  gboolean changed = FALSE;
+  if (b4 && (d->kind == FTX_DECODE_PLAIN || d->kind == FTX_DECODE_CQ)) { d->kind = FTX_DECODE_B4; changed = TRUE; }
+  if (d->new_dxcc != new_dxcc) { d->new_dxcc = new_dxcc; changed = TRUE; }
+  return changed;
+}
+
+void ftx_decode_list_mark(FtxDecodeList *l, const char *de_call, gboolean b4, gboolean new_dxcc)
+{
+  if (!de_call || !de_call[0] || l->periods == 0) return;
+  for (guint i = l->hist->len; i-- > 0; ) {            /* the model: the newest period is its tail */
+    FtxDecodeRow *d = &g_array_index(l->hist, FtxDecodeRow, i);
+    if (d->nutc != l->last_nutc || d->ft4 != l->last_ft4) break;
+    if (strcmp(d->de, de_call) == 0) apply_mark(d, b4, new_dxcc);
+  }
+  for (GtkWidget *row = gtk_widget_get_first_child(l->list); row; row = gtk_widget_get_next_sibling(row)) {
+    FtxDecodeRow *d = g_object_get_data(G_OBJECT(row), "decode");
+    if (!d || d->nutc != l->last_nutc || d->ft4 != l->last_ft4 || strcmp(d->de, de_call) != 0) continue;
+    if (apply_mark(d, b4, new_dxcc)) gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), make_box(d));
+  }
 }
 
 static void rebuild(FtxDecodeList *l)

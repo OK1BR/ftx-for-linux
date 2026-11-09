@@ -599,3 +599,27 @@ showed 0.1.0-1 at once; the RPC index lagged.  Release checklist for every
 later tag: bump `_pkgtag`/`pkgver`, `updpkgsums`, full makepkg, regenerate
 `.SRCINFO`, push to the AUR repo with Richard's explicit OK.  README › Install
 now points at the AUR package.
+
+2026-11-10 (night): the live instance runs from `~/.local/bin` (0.1.0+).
+**Decode lists black under Richard's theme**: Graphite's `list { background-color:
+#0F0F0F }` arrives at USER priority and beat `.decodes { background: transparent }`
+(the panes stood out dark grey on the black window; log-for-linux's table is a
+columnview and was black) — `main.c` loads that one rule at USER + 1.  Richard
+rejected a theme edit ("proč u logu je tabulka pěkná černá a u ftx mi nabízíš
+změnu tématu?"): look fixes belong in the app.
+**DXCC tag ("zkusíme štítky")**: log-for-linux answers every Decode with a
+verdict — yellow = worked on this band and mode, magenta (WSJT-X's default New
+DXCC colour ff00ff) = the DE station's DXCC entity is not in the log on this
+band and mode (entities resolved from the logged calls through cty.dat, WAE-only
+entities folded into their DXCC entity; the set is rebuilt after every log
+change), and it takes a magenta back (invalid colour) once a logged QSO makes it
+stale.  FTX: `win->newdx`, `FtxDecodeRow.de/new_dxcc`, the purple `DXCC` tag
+(`.tag-dxcc`), `[display] tag_dxcc` (default on, Preferences › Display › Decode
+lists › Tag new countries).  A verdict arrives after its line was added, so
+`ftx_decode_list_mark` redraws the lines of the running period — B4 no longer
+lags a period either.  Verified end to end headless (mock TCI with the FT8
+sample, a test log-for-linux on port 22370 with a copy of Richard's log.db):
+Spain (worked on 20 m FT8) untagged, France/Hungary/Balearic Is./Crete/Germany
+tagged in the period they were decoded; after Log QSO for F5RXL the next period
+showed F5RXL as B4 and the other French stations untagged.  With Richard's
+three digital QSOs nearly every station is tagged for now.
