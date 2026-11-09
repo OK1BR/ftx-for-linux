@@ -1006,6 +1006,9 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
 static void on_period(const FtxRxPeriod *p, gpointer user)
 {
   FtxWindow *win = user;
+  /* Status once per period as WSJT-X does around each decode cycle: a logger
+   * started after us learns our dial and mode (its Decode verdicts need both) */
+  send_status(win);
   char buf[96];
   switch (p->status) {
   case FTX_RX_PERIOD_GAP:

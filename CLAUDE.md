@@ -499,5 +499,10 @@ decodedtext.cpp's tokens_re does, looks up `logfl_store_worked_b4` for
 yellow Highlight only when `n_band_mode > 0`; its Status answer uses
 `n_band_mode` too (was `n_total`).  Verdicts are cached per call|band|mode
 and dropped on every log change.  FTX forgets `win->b4` on a band or mode
-change (clear_decodes).  Not yet seen live: Richard's log-for-linux must be
-restarted on the new binary first.
+change (clear_decodes).  Live: after log-for-linux was restarted on the new
+binary nothing came back, because it learns dial and mode from Status and
+FTX sent one only on changes — now FTX sends a Status at every period end
+(WSJT-X does around each decode cycle), and the sniff on lo showed a yellow
+Highlight for LZ2TS (worked today on 20 m FT4) in each period it was
+decoded, nothing for the others.  The log-for-linux commit (e79555c) is
+local until Richard says push.
