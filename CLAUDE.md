@@ -537,3 +537,34 @@ accent): a bold FSK trace stepping between the tones over time, the green Rx
 bracket beneath; the symbolic icon is the same trace in a 2 px stroke like
 sdr-for-linux's.  Proposal rendered beside the family icons at 256/48/16 px
 and approved before it went in.  Install to ~/.local is the next step.
+
+**Installed and the first release prepared (2026-11-09 evening, Richard: "no,
+můžeme... a připravil bych vydání první verze")**: `meson configure build
+-Dprefix=$HOME/.local` + `meson install` — FTX now lives in ~/.local like the
+rest of the family (bin, desktop file with the absolute Exec, both icons,
+metainfo, cty.dat); the live instance still runs from the build tree via
+/tmp/ftx-live until the next restart.  Release machinery = the family's
+(log-for-linux's build.yml is the newest, copied and adapted): version
+**0.1.0** in meson.build (the tag must match), LICENSE installed to
+`datadir/licenses/ftx-for-linux`, `.github/workflows/build.yml` with the
+`gates` job (build + an ftx-decode smoke on a missing file — which made
+ftx-decode exit 1 on an unreadable input, it returned 0 before) and the
+`artifacts` job (AppImage via linuxdeploy + GTK plugin, .deb via nfpm on
+ubuntu-26.04, .rpm compiled inside fedora:44, staged ⊆ packaged check,
+install tests with an xvfb window start, attach on v* tags; dispatch = dry
+run), `packaging/nfpm.yaml` (all four binaries, LICENSE twice for deb/rpm,
+Debian copyright, desktop, icons, cty.dat + LICENSE, metainfo; deb depends
+libfftw3-single3 + libwebsockets19t64 + the t64 GLib, rpm fftw-libs-single),
+`packaging/PKGBUILD` (sha256 SKIP until the tag exists), `packaging/copyright`
+(src/ftx/* names the ten WSJT-X holders), metainfo release 0.1.0 (the never-
+released 0.0.1 entry replaced), README › Install + Build from source.
+Checked locally: desktop-file-validate, appstreamcli validate, 82 gates,
+`makepkg -C -f` from a tarball of the tree → ftx-for-linux-0.1.0-1 with the
+same 11 files nfpm.yaml lists, namcap only the family's implicit warnings.
+Not checked locally: nfpm itself (no binary here; the classifier blocked
+downloading it, Richard: skip, CI does it) and the xvfb GUI smoke (no xvfb
+here).  Two compile warnings in wsjtx_udp.c removed (G_SOURCE_FUNC, unused
+wr_u16).  Next: push → `gh workflow run build.yml` dry run → notes EN + CZ
+approved → second "ano" for `gh release create v0.1.0 --target main` → the
+tag build attaches the artifacts → refresh ~/.local → AUR package (new,
+separate consent).

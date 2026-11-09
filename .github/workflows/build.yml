@@ -1,7 +1,20 @@
-# CI — runs at release time only (family rule, Richard 2026-07-12: no CI on
-# every commit; the local gates cover development).  One job so far: build
-# libftx, the CLI tools and the GTK4/libadwaita app on ubuntu-26.04.
-# Packaging jobs (AppImage/.deb/.rpm) arrive with the first installable app.
+# CI + release artifacts — runs at RELEASE time only (same policy as
+# sdr-for-linux, Richard 2026-07-12: no CI on every commit; the local gates
+# cover development). Two jobs:
+#  - gates: build libftx, the CLI tools and the GTK4/libadwaita app on v*
+#    tags, external pull requests, and manual dispatch.  The bit-exact gates
+#    against WSJT-X vectors are development material outside the repository
+#    (dev/, see meson.build), so CI compiles and packages; it does not decode.
+#  - artifacts: AppImage + .deb + .rpm on ubuntu-26.04 (glibc 2.43 floor —
+#    Ubuntu 26.04+, Fedora 44+, Arch, ...); v* tags and
+#    manual dispatch (dry run, no attach). Both packages are install-tested
+#    in fresh ubuntu:26.04 / fedora:44 containers BEFORE anything is attached
+#    to the GitHub Release (alpha/beta tags marked pre-release).
+#
+# The base is the CURRENT LTS on purpose (Richard, 2026-09-20): the
+# AppImage bundles whatever GTK the runner has, and a 24.04 base shipped
+# GTK 4.14, which cannot parse a stylesheet written for a current GTK.
+# Older distributions build from source or use the AUR.
 name: build
 
 on:
@@ -12,9 +25,11 @@ on:
 
 env:
   DEBIAN_FRONTEND: noninteractive
-  # libftx: fftw3; app layer: glib, libwebsockets; GUI: gtk4 >= 4.12,
-  # libadwaita >= 1.5 (glib-compile-resources comes with libglib2.0-dev)
-  APT_DEPS: meson ninja-build libfftw3-dev libglib2.0-dev libwebsockets-dev libgtk-4-dev libadwaita-1-dev
+  # libftx: fftw3 (single + double at build time); app layer: glib,
+  # libwebsockets; GUI: gtk4 >= 4.12, libadwaita >= 1.5
+  APT_DEPS: >-
+    meson ninja-build libgtk-4-dev libadwaita-1-dev libglib2.0-dev
+    libfftw3-dev libwebsockets-dev desktop-file-utils
 
 jobs:
   gates:
@@ -29,3 +44,195 @@ jobs:
         run: |
           meson setup build
           meson compile -C build
+      - name: Smoke
+        run: |
+          # the CLI decoder must at least start, and refuse a missing file
+          if ./build/ftx-decode /nonexistent.wav; then
+            echo "::error::ftx-decode accepted a missing file"; exit 1
+          fi
+
+  artifacts:
+    runs-on: ubuntu-26.04
+    needs: gates
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write   # attach the artifacts to the release on tag pushes
+    steps:
+      - uses: actions/checkout@v7
+      - name: Determine version (tag must match meson.build)
+        run: |
+          MESON_VER=$(grep -Po "version : '\K[^']+" meson.build)
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG_VER="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG_VER" != "$MESON_VER" ]]; then
+              echo "::error::tag $GITHUB_REF_NAME != meson version $MESON_VER"
+              exit 1
+            fi
+          fi
+          echo "FTX_VERSION=$MESON_VER" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPS \
+            patchelf librsvg2-common gsettings-desktop-schemas \
+            adwaita-icon-theme file wget
+      - name: Build (release, prefix /usr)
+        run: |
+          meson setup build --buildtype=release --prefix=/usr
+          meson compile -C build
+          DESTDIR=$PWD/AppDir meson install -C build
+          # Separate CLEAN staging for the deb/rpm payload — linuxdeploy
+          # mutates AppDir (bundled libs, hooks) and none of that belongs in
+          # a distro package.
+          DESTDIR=$PWD/build-pkg/staging meson install -C build
+      - name: Fetch linuxdeploy + GTK plugin
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
+      - name: Build AppImage
+        env:
+          DEPLOY_GTK_VERSION: "4"
+        run: |
+          # linuxdeploy names the file from the .desktop Name= + $VERSION
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            export VERSION="${FTX_VERSION}"
+          else
+            export VERSION="${FTX_VERSION}-git$(git rev-parse --short HEAD)"
+          fi
+          # linuxdeploy derives the AppRun target from the .desktop Exec and
+          # expects a bare binary name; the absolute /usr/bin path we bake in
+          # for distro installs would confuse it. Strip it back to bare here.
+          # Only touches AppDir — the deb/rpm staging copy keeps the absolute
+          # path, so packages are unaffected.
+          sed -i 's|^Exec=.*/|Exec=|' AppDir/usr/share/applications/cz.ok1br.ftx_for_linux.desktop
+          # Phase 1: deploy libs + GTK plugin (hooks, schemas, pixbuf loaders)
+          ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
+            --appdir AppDir \
+            --plugin gtk
+          # The gstreamer media module would dlopen the HOST gstreamer (symbol
+          # skew vs the bundled glib) and we play no media — drop it. And a
+          # libadwaita app must NOT run with GTK_THEME set (the plugin's
+          # GTK3-era default): it would suppress libadwaita's own stylesheet.
+          rm -f AppDir/usr/lib/gtk-4.0/*/media/libmedia-gstreamer.so
+          sed -i '/^export GTK_THEME=/d' AppDir/apprun-hooks/linuxdeploy-plugin-gtk.sh
+          # The hook's forced X11 backend is a GTK3-era workaround we must NOT
+          # inherit: GNOME 50 (X11 backend removed) fails to match XWayland
+          # windows' WM_CLASS to the .desktop entry, so the app shows a generic
+          # gear in the dash/Alt-Tab. GDK autodetects x11 on X11 sessions.
+          sed -i '/^export GDK_BACKEND=x11/d' AppDir/apprun-hooks/linuxdeploy-plugin-gtk.sh
+          # Phase 2: pack the AppImage
+          ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
+            --appdir AppDir \
+            --output appimage
+          ls -la *.AppImage
+          # The GPL text rides inside (#22) — meson installs it into AppDir
+          # with everything else; check the packed image, not the AppDir.
+          ./FTX_for_Linux-*.AppImage --appimage-extract usr/share/licenses/ftx-for-linux/LICENSE >/dev/null
+          test -f squashfs-root/usr/share/licenses/ftx-for-linux/LICENSE
+          rm -rf squashfs-root
+      - name: Build the .deb (nfpm)
+        run: |
+          curl -sL https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_Linux_x86_64.tar.gz \
+            | tar xz -C /tmp nfpm
+          mkdir -p dist
+          /tmp/nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+          ls -la dist/
+      - name: Build the .rpm inside fedora:44 (nfpm)
+        run: |
+          # The distributions no longer agree on SONAMEs — Fedora carries
+          # libwebsockets 4.5 where Ubuntu 26.04 still has 4.3 — so an
+          # Ubuntu-built binary can look for a library no Fedora ships. The .rpm payload is therefore compiled
+          # inside the image it targets. nfpm is a static binary, mounted in;
+          # it expands no env vars in `contents`, so the Fedora build is
+          # installed over the same staging path the .deb was packaged from a
+          # step earlier (identical file set, nothing of the first survives).
+          docker run --rm -v "$PWD:/src" -v /tmp/nfpm:/usr/local/bin/nfpm:ro \
+            -w /src -e FTX_VERSION fedora:44 bash -ec '
+            dnf install -y -q meson ninja-build gcc pkgconf-pkg-config gtk4-devel libadwaita-devel glib2-devel fftw-devel libwebsockets-devel desktop-file-utils gtk-update-icon-cache
+            meson setup build-rpm --buildtype=release --prefix=/usr
+            meson compile -C build-rpm
+            DESTDIR=/src/build-pkg/staging meson install -C build-rpm
+            nfpm package -f packaging/nfpm.yaml -p rpm -t dist/'
+          ls -la dist/
+      - name: Packages carry everything meson installs
+        run: |
+          # nfpm.yaml lists the payload by hand; log-for-linux's list fell
+          # behind once (its 0.2.0 and 0.3.0 went out without cty.dat). A
+          # staged file that is missing from
+          # the .deb (the .rpm is built from the same list) fails here. The
+          # .deb alone may carry more: its Debian copyright file (#22) is not
+          # meson's to stage, so the check is one-way — staged ⊆ packaged —
+          # and names that file on its own.
+          missing=$(comm -23 <(cd build-pkg/staging && find usr -type f | sort) \
+                             <(dpkg-deb --fsys-tarfile dist/*.deb | tar -t | grep -v '/$' | sed 's|^\./||' | sort))
+          if [ -n "$missing" ]; then
+            echo "::error::staged by meson but missing from the .deb:"; echo "$missing"; exit 1
+          fi
+          dpkg-deb --fsys-tarfile dist/*.deb | tar -t | grep -q 'usr/share/doc/ftx-for-linux/copyright$'
+          dpkg-deb --fsys-tarfile dist/*.deb | tar -t | grep -q 'usr/share/licenses/ftx-for-linux/LICENSE$'
+      - name: Install-test the .deb (ubuntu:26.04)
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" ubuntu:26.04 bash -ec '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -q
+            apt-get install -yq /dist/*.deb
+            if ldd /usr/bin/ftx-for-linux | grep "not found"; then exit 1; fi
+            test -f /usr/share/applications/cz.ok1br.ftx_for_linux.desktop
+            test -f /usr/share/ftx-for-linux/cty.dat
+            # #22: the GPL text and the Debian copyright summary are installed.
+            test -f /usr/share/licenses/ftx-for-linux/LICENSE
+            test -f /usr/share/doc/ftx-for-linux/copyright
+            apt-get install -yq xvfb
+            # The libraries resolving is half the chain — the window has to
+            # come up on the target system too. The app runs under a throwaway
+            # X server and has to be ALIVE when the timeout fires: timeout
+            # returns 124 only if nothing aborted before it. The cairo renderer
+            # is forced because a container has no GPU stack at all.
+            set +e
+            timeout 15 env GSK_RENDERER=cairo xvfb-run -a ftx-for-linux >/tmp/gui.log 2>&1
+            rc=$?
+            set -e
+            if [ $rc -ne 124 ]; then echo "GUI smoke test failed, rc=$rc"; cat /tmp/gui.log; exit 1; fi
+            if grep -Eiq "cannot open display|Gtk-ERROR|GLib-GObject-CRITICAL" /tmp/gui.log; then cat /tmp/gui.log; exit 1; fi
+            echo "deb install + GUI OK"'
+      - name: Install-test the .rpm (fedora:44)
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" fedora:44 bash -ec '
+            dnf install -y -q /dist/*.rpm
+            if ldd /usr/bin/ftx-for-linux | grep "not found"; then exit 1; fi
+            test -f /usr/share/applications/cz.ok1br.ftx_for_linux.desktop
+            test -f /usr/share/ftx-for-linux/cty.dat
+            # #22: the GPL text is installed AND flagged %license (rpm -qL
+            # lists exactly the %license files of the package).
+            test -f /usr/share/licenses/ftx-for-linux/LICENSE
+            rpm -qL ftx-for-linux | grep -q "/usr/share/licenses/ftx-for-linux/LICENSE$"
+            dnf install -y -q xorg-x11-server-Xvfb
+            # Same GUI smoke test as the .deb side, see there.
+            set +e
+            timeout 15 env GSK_RENDERER=cairo xvfb-run -a ftx-for-linux >/tmp/gui.log 2>&1
+            rc=$?
+            set -e
+            if [ $rc -ne 124 ]; then echo "GUI smoke test failed, rc=$rc"; cat /tmp/gui.log; exit 1; fi
+            if grep -Eiq "cannot open display|Gtk-ERROR|GLib-GObject-CRITICAL" /tmp/gui.log; then cat /tmp/gui.log; exit 1; fi
+            echo "rpm install + GUI OK"'
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: |
+            FTX_for_Linux-*.AppImage
+            dist/*.deb
+            dist/*.rpm
+      - name: Attach to release (tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            FTX_for_Linux-*.AppImage
+            dist/*.deb
+            dist/*.rpm
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
+          # The release (with curated notes) is created via `gh release create`
+          # BEFORE the tag build runs — this step only attaches the artifacts.
+          generate_release_notes: false

@@ -34,8 +34,22 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.0.1" date="2026-10-11">
-      <description><p>First GUI: live RX over TCI, FT8 and FT4 decoding, waterfall, decode lists, QSO panel (RX only).</p></description>
+    <release version="0.1.0" date="2026-11-09">
+      <description>
+        <p>
+          First release. FT8 and FT4 decoders ported from WSJT-X v3.0.2 to C,
+          bit-exact against the original (a-priori decoding, multipass
+          subtraction, the complete 77-bit message set), decoding in stages
+          during the period as WSJT-X does. The window works a TCI radio:
+          labelled waterfall, Band activity and Rx frequency lists with the
+          station's country, a QSO panel with the WSJT-X auto-sequencer,
+          transmitting over TCI with WSJT-X's waveform and timing, Tune, a
+          band switcher with the WSJT-X working frequencies that puts the
+          radio into DIGU, and logging to log-for-linux over the WSJT-X UDP
+          protocol with worked-before marks per band and mode. CLI tools
+          ftx-decode, ftx-rx and ftx-record.
+        </p>
+      </description>
     </release>
   </releases>
 </component>

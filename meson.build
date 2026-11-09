@@ -1,5 +1,5 @@
 project('ftx-for-linux', 'c',
-  version : '0.0.1',
+  version : '0.1.0',
   license : 'GPL-3.0-or-later',
   default_options : [
     'c_std=c99',
@@ -58,6 +58,11 @@ executable('ftx-for-linux',
   install : true)
 
 subdir('data')   # .desktop + icons + AppStream metainfo (install only)
+
+# The GPL text travels with every install, so the packages and the AppImage
+# carry it at the same path (log-for-linux #22: releases went out without it).
+install_data('LICENSE',
+  install_dir : get_option('datadir') / 'licenses' / meson.project_name())
 
 # The bit-exact gates against WSJT-X-generated vectors are development
 # material kept outside the repository (dev/, ignored by git); the build

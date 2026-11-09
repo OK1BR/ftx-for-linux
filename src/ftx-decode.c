@@ -66,6 +66,8 @@ static int nutc_from_name(const char *path)
   return v;
 }
 
+static int n_bad;   /* input files that could not be read */
+
 static int read_wav(const char *path, int16_t *iwave, size_t nmax)
 {
   FILE *fp = fopen(path, "rb");
@@ -154,13 +156,13 @@ int main(int argc, char **argv)
     memcpy(p4.hiscall, p.hiscall, sizeof p4.hiscall);
     int16_t *iwave4 = malloc(FT4_NMAX * sizeof(int16_t));
     for (; i < argc; i++) {
-      if (read_wav(argv[i], iwave4, FT4_NMAX) != 0) continue;
+      if (read_wav(argv[i], iwave4, FT4_NMAX) != 0) { n_bad++; continue; }
       struct cbctx c = { nutc_from_name(argv[i]), p.nfqso, true, 0 };
       ftx_ft4_decode(ctx4, iwave4, &p4, on_decode4, &c);
     }
     free(iwave4);
     ftx_ft4_ctx_free(ctx4);
-    return 0;
+    return n_bad ? 1 : 0;      /* a file that could not be read fails the run */
   }
 
   ftx_ft8_ctx *ctx = ftx_ft8_ctx_new();
@@ -171,7 +173,7 @@ int main(int argc, char **argv)
   int16_t *iwave = malloc(FT8_NMAX * sizeof(int16_t));
   int16_t *id2a = malloc(FT8_NMAX * sizeof(int16_t));
   for (; i < argc; i++) {
-    if (read_wav(argv[i], iwave, FT8_NMAX) != 0) continue;
+    if (read_wav(argv[i], iwave, FT8_NMAX) != 0) { n_bad++; continue; }
     struct cbctx c = { nutc_from_name(argv[i]), p.nfqso, true, 0 };
     static const int seq[3] = { 41, 47, 50 };
     for (int s = 0; s < 3; s++) {       /* jt9's sequence: the decoder expects all three calls */
@@ -185,5 +187,5 @@ int main(int argc, char **argv)
   free(iwave);
   free(id2a);
   ftx_ft8_ctx_free(ctx);
-  return 0;
+  return n_bad ? 1 : 0;
 }

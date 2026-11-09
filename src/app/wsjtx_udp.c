@@ -10,7 +10,6 @@
 /* ---- writers (QDataStream, big-endian) --------------------------------------- */
 
 static void wr_u8(GByteArray *a, guint8 v) { g_byte_array_append(a, &v, 1); }
-static void wr_u16(GByteArray *a, guint16 v) { guint8 b[2] = { (guint8)(v >> 8), (guint8)v }; g_byte_array_append(a, b, 2); }
 static void wr_u32(GByteArray *a, guint32 v)
 {
   guint8 b[4] = { (guint8)(v >> 24), (guint8)(v >> 16), (guint8)(v >> 8), (guint8)v };
@@ -360,7 +359,7 @@ gboolean ftx_wsjtx_udp_start(FtxWsjtxUdp *u, const char *host, guint16 port, GEr
   if (!u->sock) { g_clear_object(&u->server); return FALSE; }
   g_socket_set_blocking(u->sock, FALSE);
   u->src = g_socket_create_source(u->sock, G_IO_IN, NULL);
-  g_source_set_callback(u->src, (GSourceFunc)on_readable, u, NULL);
+  g_source_set_callback(u->src, G_SOURCE_FUNC(on_readable), u, NULL);
   g_source_attach(u->src, NULL);
   u->running = TRUE;
   on_pulse(u);                                  /* the initial heartbeat negotiates the schema */

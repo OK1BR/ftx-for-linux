@@ -85,13 +85,37 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   jt9's format, a status line per period (decode time, level, clock drift,
   mean DT) on stderr. `-5` for FT4, `-c/-x/-G` for a-priori decoding.
 
-## Build
+## Install
+
+Pick whichever fits your distribution — the
+[Releases page](https://github.com/OK1BR/ftx-for-linux/releases) carries
+prebuilt packages for every release:
+
+- **AppImage** (any current distro, glibc 2.43+): download, `chmod +x FTX_for_Linux-*.AppImage`,
+  run. Everything bundled, nothing to install.
+- **Ubuntu 26.04+**: `sudo apt install ./ftx-for-linux_*.deb`
+- **Fedora 44+**: `sudo dnf install ./ftx-for-linux-*.rpm`
+- **Arch Linux**: the tagged release builds from source through the
+  [PKGBUILD](packaging/PKGBUILD) (`makepkg -si` in a copy of `packaging/`);
+  an AUR package follows.
+
+Both distro packages are install-tested in clean containers before they are
+attached to a release.
+
+## Build from source
+
+C99 compiler, `meson`/`ninja`, and development files for **FFTW3** (single
+and double precision), **GLib/GIO**, **libwebsockets**, **GTK 4** (>= 4.12)
+and **libadwaita** (>= 1.5).
+
+Arch: `pacman -S --needed gcc meson fftw glib2 libwebsockets gtk4 libadwaita`
+(equivalent `-dev`/`-devel` packages on other distributions).
 
 ```sh
 meson setup build
 meson compile -C build
+./build/ftx-for-linux
 ```
 
-Dependencies: meson, a C99 compiler, FFTW3 (`fftw3`, `fftw3f`); the app layer
-adds GLib and libwebsockets; the GUI adds GTK4 (>= 4.12) and libadwaita
-(>= 1.5). `meson install` adds the launcher, icon and AppStream metadata.
+`meson install` adds the launcher, icons, AppStream metadata, `cty.dat` and
+the licence text; with `--prefix ~/.local` it installs for the user alone.

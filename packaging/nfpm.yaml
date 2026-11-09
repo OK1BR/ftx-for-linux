@@ -1,0 +1,96 @@
+# nfpm configuration — builds the .deb and .rpm attached to GitHub releases.
+# Run from the repo root after staging a release build:
+#   meson setup build-pkg --buildtype=release --prefix=/usr
+#   meson compile -C build-pkg
+#   DESTDIR=$PWD/build-pkg/staging meson install -C build-pkg
+#   FTX_VERSION=x.y.z nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+#   FTX_VERSION=x.y.z nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
+#
+# Dependency names follow sdr-for-linux's and log-for-linux's packaging
+# (Ubuntu 26.04 for the .deb, Fedora 44 for the .rpm, whose payload is
+# compiled inside fedora:44); CI install-tests both packages in fresh
+# containers, ldd-checks the binary and brings the window up under xvfb
+# before a release artifact is attached, so a renamed distro package fails
+# the pipeline instead of the user.
+
+name: ftx-for-linux
+arch: amd64
+platform: linux
+version: ${FTX_VERSION}
+section: hamradio
+priority: optional
+maintainer: Richard Fakenberg <rifak@protonmail.com>
+vendor: OK1BR
+homepage: https://github.com/OK1BR/ftx-for-linux
+license: GPL-3.0-or-later
+description: |
+  Native GTK4/libadwaita FT8 and FT4 program for TCI radios.
+  The FT8/FT4 decoders are ported by hand from WSJT-X (v3.0.2) to C and
+  are bit-exact against the original: a-priori decoding, multipass signal
+  subtraction, the complete 77-bit message set. One window: labelled
+  waterfall, Band activity and Rx frequency lists, a QSO panel with the
+  WSJT-X auto-sequencer; RX audio, TX audio and keying over one TCI
+  connection (sdr-for-linux, icom-for-linux); logging to log-for-linux over
+  the WSJT-X UDP protocol. CLI tools: ftx-decode, ftx-rx, ftx-record.
+
+contents:
+  # Every file meson installs, one entry each — a `type: tree` entry would make
+  # the rpm own shared directories (icons/hicolor/...) as well. build.yml fails
+  # when a staged file is missing here.
+  - src: build-pkg/staging/usr/bin/ftx-for-linux
+    dst: /usr/bin/ftx-for-linux
+  - src: build-pkg/staging/usr/bin/ftx-decode
+    dst: /usr/bin/ftx-decode
+  - src: build-pkg/staging/usr/bin/ftx-rx
+    dst: /usr/bin/ftx-rx
+  - src: build-pkg/staging/usr/bin/ftx-record
+    dst: /usr/bin/ftx-record
+  # The GPL text. Twice on purpose: `type: license` is what makes the .rpm
+  # mark it %license (Fedora Licensing Guidelines), and nfpm 2.47 drops every
+  # entry of that type from any other packager (files.go,
+  # isRelevantForPackager) — so the .deb needs its own plain entry.
+  - src: build-pkg/staging/usr/share/licenses/ftx-for-linux/LICENSE
+    dst: /usr/share/licenses/ftx-for-linux/LICENSE
+    type: license
+    packager: rpm
+  - src: build-pkg/staging/usr/share/licenses/ftx-for-linux/LICENSE
+    dst: /usr/share/licenses/ftx-for-linux/LICENSE
+    packager: deb
+  # Debian Policy 12.5: the machine-readable copyright summary; .deb only,
+  # and the one file here meson does not stage — build.yml knows.
+  - src: packaging/copyright
+    dst: /usr/share/doc/ftx-for-linux/copyright
+    packager: deb
+  - src: build-pkg/staging/usr/share/applications/cz.ok1br.ftx_for_linux.desktop
+    dst: /usr/share/applications/cz.ok1br.ftx_for_linux.desktop
+  - src: build-pkg/staging/usr/share/icons/hicolor/scalable/apps/cz.ok1br.ftx_for_linux.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/cz.ok1br.ftx_for_linux.svg
+  - src: build-pkg/staging/usr/share/icons/hicolor/symbolic/apps/cz.ok1br.ftx_for_linux-symbolic.svg
+    dst: /usr/share/icons/hicolor/symbolic/apps/cz.ok1br.ftx_for_linux-symbolic.svg
+  - src: build-pkg/staging/usr/share/ftx-for-linux/cty.dat
+    dst: /usr/share/ftx-for-linux/cty.dat
+  - src: build-pkg/staging/usr/share/ftx-for-linux/cty.dat.LICENSE
+    dst: /usr/share/ftx-for-linux/cty.dat.LICENSE
+  - src: build-pkg/staging/usr/share/metainfo/cz.ok1br.ftx_for_linux.metainfo.xml
+    dst: /usr/share/metainfo/cz.ok1br.ftx_for_linux.metainfo.xml
+
+overrides:
+  deb:
+    # Ubuntu 26.04+ (the t64 names post 64-bit time_t transition).  Only the
+    # single-precision FFTW is linked at run time (the double-precision
+    # dependency is build-time only — ldd shows libfftw3f alone).
+    depends:
+      - libc6 (>= 2.43)
+      - libgtk-4-1
+      - libadwaita-1-0 (>= 1.5)
+      - libglib2.0-0t64
+      - libfftw3-single3
+      - libwebsockets19t64
+  rpm:
+    # Fedora 44+
+    depends:
+      - gtk4
+      - libadwaita >= 1.5
+      - glib2
+      - fftw-libs-single
+      - libwebsockets
