@@ -25,6 +25,7 @@ struct _FtxTciClient {
 
   FtxTciAudioCb  audio_cb;  gpointer audio_cb_data;
   FtxTciVfoCb    vfo_cb;    gpointer vfo_cb_data;
+  FtxTciModeCb   mode_cb;   gpointer mode_cb_data;
   FtxTciTxCb     tx_cb;     gpointer tx_cb_data;
   FtxTciClosedCb closed_cb; gpointer closed_cb_data;
 
@@ -121,6 +122,7 @@ static void handle_command(FtxTciClient *c, char *cmd)
 
   FtxTciVfoCb vfo_cb = NULL; gpointer vfo_user = NULL; double vfo_hz = 0;
   FtxTciTxCb tx_cb = NULL; gpointer tx_user = NULL; gboolean tx_val = FALSE;
+  FtxTciModeCb mode_cb = NULL; gpointer mode_user = NULL; char mode_val[16] = "";
 
   g_mutex_lock(&c->lock);
   if (strcmp(cmd, "ready") == 0) {
@@ -132,7 +134,10 @@ static void handle_command(FtxTciClient *c, char *cmd)
     g_strlcpy(c->device, args, sizeof c->device);
   } else if (strcmp(cmd, "modulation") == 0 && args) {
     char *comma = strchr(args, ',');       /* modulation:<rx>,<mode> */
-    if (comma && strtol(args, NULL, 10) == 0) g_strlcpy(c->mode, comma + 1, sizeof c->mode);
+    if (comma && strtol(args, NULL, 10) == 0 && strcmp(c->mode, comma + 1) != 0) {
+      g_strlcpy(c->mode, comma + 1, sizeof c->mode);
+      mode_cb = c->mode_cb; mode_user = c->mode_cb_data; g_strlcpy(mode_val, c->mode, sizeof mode_val);
+    }
   } else if (strcmp(cmd, "vfo") == 0 && args) {
     char *c1 = strchr(args, ',');
     char *c2 = c1 ? strchr(c1 + 1, ',') : NULL;
@@ -158,6 +163,7 @@ static void handle_command(FtxTciClient *c, char *cmd)
   }
   g_mutex_unlock(&c->lock);
   if (vfo_cb) vfo_cb(vfo_hz, vfo_user);
+  if (mode_cb) mode_cb(mode_val, mode_user);
   if (tx_cb) tx_cb(tx_val, tx_user);
 }
 
@@ -355,6 +361,7 @@ void ftx_tci_client_free(FtxTciClient *c)
 
 void ftx_tci_client_set_audio_cb(FtxTciClient *c, FtxTciAudioCb cb, gpointer u) { c->audio_cb = cb; c->audio_cb_data = u; }
 void ftx_tci_client_set_vfo_cb(FtxTciClient *c, FtxTciVfoCb cb, gpointer u) { c->vfo_cb = cb; c->vfo_cb_data = u; }
+void ftx_tci_client_set_mode_cb(FtxTciClient *c, FtxTciModeCb cb, gpointer u) { c->mode_cb = cb; c->mode_cb_data = u; }
 void ftx_tci_client_set_tx_cb(FtxTciClient *c, FtxTciTxCb cb, gpointer u) { c->tx_cb = cb; c->tx_cb_data = u; }
 void ftx_tci_client_set_closed_cb(FtxTciClient *c, FtxTciClosedCb cb, gpointer u) { c->closed_cb = cb; c->closed_cb_data = u; }
 

@@ -27,6 +27,7 @@ typedef struct _FtxTciClient FtxTciClient;
 typedef void (*FtxTciAudioCb)(const float *mono, guint nframes, guint rate, gpointer user_data);
 /* Dial frequency of receiver 0 channel A changed (Hz). */
 typedef void (*FtxTciVfoCb)(double vfo_hz, gpointer user_data);
+typedef void (*FtxTciModeCb)(const char *mode, gpointer user_data);   /* modulation:0,<mode> echo */
 /* Keyed state changed (trx:0 OR tune:0). */
 typedef void (*FtxTciTxCb)(gboolean tx, gpointer user_data);
 /* The server closed the connection (not fired on ftx_tci_client_stop). */
@@ -37,6 +38,7 @@ void          ftx_tci_client_free(FtxTciClient *c);
 
 void ftx_tci_client_set_audio_cb(FtxTciClient *c, FtxTciAudioCb cb, gpointer user_data);
 void ftx_tci_client_set_vfo_cb(FtxTciClient *c, FtxTciVfoCb cb, gpointer user_data);
+void ftx_tci_client_set_mode_cb(FtxTciClient *c, FtxTciModeCb cb, gpointer user_data);
 void ftx_tci_client_set_tx_cb(FtxTciClient *c, FtxTciTxCb cb, gpointer user_data);
 void ftx_tci_client_set_closed_cb(FtxTciClient *c, FtxTciClosedCb cb, gpointer user_data);
 

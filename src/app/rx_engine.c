@@ -45,6 +45,7 @@ struct _FtxRxEngine {
   FtxRxPeriodCb period_cb; gpointer period_user;
   FtxRxRowCb    row_cb;    gpointer row_user;
   FtxRxVfoCb    vfo_cb;    gpointer vfo_user;
+  FtxRxModeCb   mode_cb;   gpointer mode_user;
   FtxRxTxCb     tx_cb;     gpointer tx_user;
   FtxRxClosedCb closed_cb; gpointer closed_user;
 
@@ -82,7 +83,7 @@ struct _FtxRxEngine {
 
 /* ---- delivery to the consumer's context -------------------------------- */
 
-enum { EM_DECODE, EM_PERIOD, EM_ROW, EM_VFO, EM_TX, EM_CLOSED };
+enum { EM_DECODE, EM_PERIOD, EM_ROW, EM_VFO, EM_MODE, EM_TX, EM_CLOSED };
 
 struct emit {
   FtxRxEngine *e;
@@ -91,6 +92,7 @@ struct emit {
   FtxRxPeriod p;
   float *row; guint nbins; double bin_hz; gint64 t_us;
   double hz;
+  char mode[16];
   gboolean tx;
 };
 
@@ -105,6 +107,7 @@ static gboolean emit_dispatch(gpointer data)
   case EM_PERIOD: if (e->period_cb) e->period_cb(&m->p, e->period_user); break;
   case EM_ROW:    if (e->row_cb) e->row_cb(m->row, m->nbins, m->bin_hz, m->t_us, e->row_user); break;
   case EM_VFO:    if (e->vfo_cb) e->vfo_cb(m->hz, e->vfo_user); break;
+  case EM_MODE:   if (e->mode_cb) e->mode_cb(m->mode, e->mode_user); break;
   case EM_TX:     if (e->tx_cb) e->tx_cb(m->tx, e->tx_user); break;
   case EM_CLOSED: if (e->closed_cb) e->closed_cb(e->closed_user); break;
   }
@@ -324,6 +327,13 @@ static void on_vfo(double hz, gpointer user)
   emit(m);
 }
 
+static void on_radio_mode(const char *mode, gpointer user)
+{
+  struct emit *m = emit_new(user, EM_MODE);
+  g_strlcpy(m->mode, mode, sizeof m->mode);
+  emit(m);
+}
+
 static void on_tx(gboolean tx, gpointer user)
 {
   FtxRxEngine *e = user;
@@ -388,7 +398,7 @@ void ftx_rx_engine_free(FtxRxEngine *e)
    * this returns: without callbacks they are no-ops (the engine itself lives
    * on until the last of them is freed) */
   e->decode_cb = NULL; e->period_cb = NULL; e->row_cb = NULL;
-  e->vfo_cb = NULL; e->tx_cb = NULL; e->closed_cb = NULL;
+  e->vfo_cb = NULL; e->mode_cb = NULL; e->tx_cb = NULL; e->closed_cb = NULL;
   engine_unref(e);
 }
 
@@ -396,6 +406,7 @@ void ftx_rx_engine_set_decode_cb(FtxRxEngine *e, FtxRxDecodeCb cb, gpointer u) {
 void ftx_rx_engine_set_period_cb(FtxRxEngine *e, FtxRxPeriodCb cb, gpointer u) { e->period_cb = cb; e->period_user = u; }
 void ftx_rx_engine_set_row_cb(FtxRxEngine *e, FtxRxRowCb cb, gpointer u)       { e->row_cb = cb; e->row_user = u; }
 void ftx_rx_engine_set_vfo_cb(FtxRxEngine *e, FtxRxVfoCb cb, gpointer u)       { e->vfo_cb = cb; e->vfo_user = u; }
+void ftx_rx_engine_set_mode_cb(FtxRxEngine *e, FtxRxModeCb cb, gpointer u)     { e->mode_cb = cb; e->mode_user = u; }
 void ftx_rx_engine_set_tx_cb(FtxRxEngine *e, FtxRxTxCb cb, gpointer u)         { e->tx_cb = cb; e->tx_user = u; }
 void ftx_rx_engine_set_closed_cb(FtxRxEngine *e, FtxRxClosedCb cb, gpointer u) { e->closed_cb = cb; e->closed_user = u; }
 
@@ -454,6 +465,7 @@ gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *host, guint16 port, G
   g_mutex_unlock(&e->audio_lock);
   ftx_tci_client_set_audio_cb(e->tci, on_audio, e);
   ftx_tci_client_set_vfo_cb(e->tci, on_vfo, e);
+  ftx_tci_client_set_mode_cb(e->tci, on_radio_mode, e);
   ftx_tci_client_set_tx_cb(e->tci, on_tx, e);
   ftx_tci_client_set_closed_cb(e->tci, on_closed, e);
   e->queue = g_async_queue_new();

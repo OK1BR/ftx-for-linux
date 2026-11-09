@@ -61,6 +61,7 @@ typedef void (*FtxRxPeriodCb)(const FtxRxPeriod *p, gpointer user);
  * 0 Hz; t_utc_us = wall-clock time of the row (UTC, microseconds). */
 typedef void (*FtxRxRowCb)(const float *db, guint nbins, double bin_hz, gint64 t_utc_us, gpointer user);
 typedef void (*FtxRxVfoCb)(double hz, gpointer user);
+typedef void (*FtxRxModeCb)(const char *mode, gpointer user);   /* the radio's modulation echo (e.g. "digu") */
 typedef void (*FtxRxTxCb)(gboolean tx, gpointer user);
 typedef void (*FtxRxClosedCb)(gpointer user);
 
@@ -74,6 +75,7 @@ void ftx_rx_engine_set_decode_cb(FtxRxEngine *e, FtxRxDecodeCb cb, gpointer user
 void ftx_rx_engine_set_period_cb(FtxRxEngine *e, FtxRxPeriodCb cb, gpointer user);
 void ftx_rx_engine_set_row_cb(FtxRxEngine *e, FtxRxRowCb cb, gpointer user);
 void ftx_rx_engine_set_vfo_cb(FtxRxEngine *e, FtxRxVfoCb cb, gpointer user);
+void ftx_rx_engine_set_mode_cb(FtxRxEngine *e, FtxRxModeCb cb, gpointer user);
 void ftx_rx_engine_set_tx_cb(FtxRxEngine *e, FtxRxTxCb cb, gpointer user);
 void ftx_rx_engine_set_closed_cb(FtxRxEngine *e, FtxRxClosedCb cb, gpointer user);
 

@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "waterfall.h"
+#include "app/bands.h"
 
 typedef struct {
   FtxSettings    *s;
@@ -154,6 +155,46 @@ static void combo(Ctx *c, GtkWidget *g, const char *title, const char *sub, cons
   adw_preferences_group_add(ADW_PREFERENCES_GROUP(g), r);
 }
 
+/* A working frequency in MHz ("14.074", "7.0475"); empty = no frequency on
+ * that band.  A comma is taken as the decimal mark too.  Stored in Hz. */
+static void on_freq_entry(GtkEditable *e, gpointer user)
+{
+  Ctx *c = user;
+  int *field = g_object_get_data(G_OBJECT(e), "field");
+  char *t = g_strdup(gtk_editable_get_text(e));
+  g_strstrip(t);
+  for (char *p = t; *p; p++) if (*p == ',') *p = '.';
+  char *end = t;
+  double mhz = t[0] ? g_ascii_strtod(t, &end) : 0.0;
+  if (!t[0] || (*end == '\0' && mhz > 0 && mhz < 2000)) {
+    *field = t[0] ? (int)(mhz * 1e6 + 0.5) : 0;
+    gtk_widget_remove_css_class(GTK_WIDGET(e), "error");
+    notify(c);
+  } else {
+    gtk_widget_add_css_class(GTK_WIDGET(e), "error");
+  }
+  g_free(t);
+}
+
+static void freq_entry(Ctx *c, GtkWidget *g, const char *title, int *field)
+{
+  GtkWidget *r = adw_entry_row_new();
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(r), title);
+  char t[24] = "";
+  if (*field > 0) {
+    g_ascii_formatd(t, sizeof t, "%.6f", *field / 1e6);
+    char *dot = strchr(t, '.');
+    if (dot) {                                   /* at least three decimals, no trailing zeros */
+      char *end = t + strlen(t);
+      while (end > dot + 4 && end[-1] == '0') *--end = '\0';
+    }
+  }
+  gtk_editable_set_text(GTK_EDITABLE(r), t);
+  g_object_set_data(G_OBJECT(r), "field", field);
+  g_signal_connect(r, "changed", G_CALLBACK(on_freq_entry), c);
+  adw_preferences_group_add(ADW_PREFERENCES_GROUP(g), r);
+}
+
 static AdwPreferencesPage *page(AdwPreferencesDialog *d, const char *title, const char *name, const char *icon)
 {
   GtkWidget *p = adw_preferences_page_new();
@@ -171,10 +212,10 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   AdwDialog *d = ADW_DIALOG(adw_preferences_dialog_new());
   g_object_set_data_full(G_OBJECT(d), "ctx", c, g_free);
   adw_dialog_set_title(d, "Preferences");
-  /* wide enough for the five page tabs to stay in the header bar under a
+  /* wide enough for the six page tabs to stay in the header bar under a
    * large-font theme (libadwaita moves them to a bottom bar when the
-   * switcher does not fit); the sdr-for-linux size */
-  adw_dialog_set_content_width(d, 1000);
+   * switcher does not fit); sdr-for-linux uses 1000 for five */
+  adw_dialog_set_content_width(d, 1120);
   adw_dialog_set_content_height(d, 720);
   AdwPreferencesDialog *pd = ADW_PREFERENCES_DIALOG(d);
 
@@ -194,6 +235,12 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   g = group(p, "Transmit", "FTX keys the radio with trx over TCI and streams the FT8/FT4 audio (48 kHz) as the TX source.");
   spin(c, g, "TX audio level", "% of full scale; the radio's drive sets the power", 10, 100, 5, 0, &s->tx_level_pct, NULL);
   sw(c, g, "Check the mode before keying", "refuse to transmit unless the radio reports DIGU or USB", &s->check_mode);
+
+  p = page(pd, "Frequencies", "frequencies", "view-list-symbolic");
+  g = group(p, "FT8", "Dial frequency in MHz for each band — the WSJT-X 3.0.2 defaults.  The band switcher in the header tunes the radio here over TCI and puts it into DIGU; switching FT8/FT4 moves to the other mode's frequency on the same band.  Empty = no working frequency on that band.");
+  for (int b = 0; b < FTX_NBANDS; b++) freq_entry(c, g, ftx_bands[b].name, &s->freq_ft8[b]);
+  g = group(p, "FT4", NULL);
+  for (int b = 0; b < FTX_NBANDS; b++) freq_entry(c, g, ftx_bands[b].name, &s->freq_ft4[b]);
 
   p = page(pd, "Decoder", "decoder", "system-run-symbolic");
   g = group(p, "Decoding", "The WSJT-X 3.0.2 algorithms, ported.  Depth 3 is what jt9 -d 3 does.");

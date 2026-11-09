@@ -368,3 +368,43 @@ within-block order, wheel-scroll then back at the top on the next period, the ol
 block gone after the third period.  The order flip in the dialog itself is not
 exercised headless (Broadway tab limitation).
 
+2026-11-09 (after a month's pause): live again.  sdr-for-linux could not find
+the G2E: the PC's new input firewall of 2026-11-02 (`/etc/nftables.conf`,
+table `inet pc`, policy drop) let in UDP from the radio's source ports
+1024–1042 only, while gateware 11.0.5 answers P2 discovery from source port 0
+(kernel log `PC-DROP … SRC=192.168.1.247 … SPT=0`); with Richard's consent the
+rule became `udp sport { 0, 1024-1042 }` (backup
+`/etc/nftables.conf.bak-2026-11-09`).  The PC is 192.168.1.12 now (DHCP; the
+.18 in the notes above is old).  First live period after the fix: 18.100 FT8,
+22 decodes, DT 0.0–0.5 s.
+**Band switcher, working frequencies, DIGU** (Richard: "nahoře máme přepínač
+FT4/8 a potřebujeme tam mít i přepínač pásem… frekvenční tabulku… aby se
+správně přepnul režim DIGU"): `src/app/bands.[ch]` (160–6 m; IARU-wide edges =
+sdr-for-linux's BANDS table; WSJT-X `models/FrequencyList.cpp`
+default_frequency_list @ v3.0.2, the preferred FT8/FT4 entries — 160 m has no
+FT4), settings `[frequencies] ft8_<band>` / `ft4_<band>` in Hz with those
+defaults, Preferences › Frequencies (two groups of MHz entry rows, empty = none,
+comma accepted; dialog 1120 wide for six tabs), a GtkDropDown of bands in the
+header left of FT8/FT4 that follows the dial (nothing selected out of band,
+insensitive while disconnected).  Selecting a band sends `vfo:0,0,<hz>;` and,
+250 ms later, `modulation:0,digu;` (sent once more at +700 ms if the echo still
+says otherwise): sdr-for-linux's `band_apply` runs on its next GUI tick after
+the dial crosses into another band and restores the band-stack mode, and a mode
+set before that tick is filed under the old band and then overridden (gui.c
+on_mode_toggled / band_apply), so DIGU must follow the vfo, not ride with it.
+FT8 ↔ FT4 keeps the band and retunes to the new mode's frequency (WSJT-X).  The
+TCI client gained a modulation callback (`FtxTciModeCb` → engine `EM_MODE`) so
+the header and the status bar show the radio's mode echo at once.  Pitfall found
+headless: GtkDropDown delivers the notify of a programmatic set_selected after
+the handler that made it has returned, so a "syncing" flag alone let a
+dial-follow sync retune the radio — `on_band` ignores a selection equal to the
+dial's band.  Verified headless against the mock (dev/tools/tci_mock_server.c
+now answers vfo/modulation, emulates band_apply with lsb 30 ms after a band
+change, SIGUSR1/SIGUSR2 = the operator turning the dial to 18.130 / 14.242;
+dev/tools/cdp_click.js drives clicks): 20 m → 17 m gives vfo 18100000, the
+mock's lsb, digu at +253 ms, header "18.100.000 · 17 m · DIGU"; FT8 → FT4 gives
+vfo 18104000 + digu; 160 m in FT4 toasts and reverts with no command; operator
+dial moves update the drop-down and send nothing back.  Preferences ›
+Frequencies rendered headless (the tab click worked with a 1 s settle).  81
+gates (new `dev/tests/test_bands.c`).  Not verified: the real radio (Richard's
+live instance was restarted on this build at 16:09 and reconnected).

@@ -52,9 +52,13 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   spectrum), the TX engine (keying with `trx:0,true,tci`, the 48 kHz
   waveform paced in real time, Tune), the standard messages and
   decoded-text helpers ported from WSJT-X's `mainwindow.cpp`/`decodedtext.cpp`,
-  settings (`~/.config/ftx-for-linux/config.ini`).
+  settings (`~/.config/ftx-for-linux/config.ini`), the band table with the
+  WSJT-X default working frequencies (`bands.c`).
 - `src/ui/` — the GTK4/libadwaita application `ftx-for-linux`: header bar
-  with the radio's dial and mode, the waterfall (callsigns on the traces,
+  with the radio's dial and mode, the band switcher (tunes the radio over
+  TCI to the mode's working frequency — WSJT-X's defaults, editable in
+  Preferences › Frequencies — and puts it into DIGU; FT8 ↔ FT4 moves to the
+  other mode's frequency on the band), the waterfall (callsigns on the traces,
   period tags, Rx/Tx brackets; click = Rx, right click = Tx), the two decode
   panes as in WSJT-X, the QSO panel (partner, the transmission card, Tx1–Tx6,
   auto-sequencer), the status bar (UTC, period, clock health from the mean

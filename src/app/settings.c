@@ -20,6 +20,10 @@ static const struct key {
   K("radio", "tci_host", T_STR, tci_host), K("radio", "tci_port", T_INT, tci_port),
   K("radio", "connect_at_start", T_BOOL, connect_at_start),
   K("radio", "tx_level_pct", T_INT, tx_level_pct), K("radio", "check_mode", T_BOOL, check_mode),
+#define KF(i, n) K("frequencies", "ft8_" n, T_INT, freq_ft8[i]), K("frequencies", "ft4_" n, T_INT, freq_ft4[i])
+  KF(0, "160m"), KF(1, "80m"), KF(2, "60m"), KF(3, "40m"), KF(4, "30m"), KF(5, "20m"),
+  KF(6, "17m"), KF(7, "15m"), KF(8, "12m"), KF(9, "10m"), KF(10, "6m"),
+#undef KF
   K("decoder", "depth", T_INT, depth), K("decoder", "ap", T_BOOL, ap),
   K("decoder", "nfa", T_INT, nfa), K("decoder", "nfb", T_INT, nfb),
   K("decoder", "clock_warn_dt", T_DOUBLE, clock_warn_dt), K("decoder", "show_dt_health", T_BOOL, show_dt_health),
@@ -38,6 +42,7 @@ static const struct key {
   K("window", "lists", T_INT, lists_pos),
 #undef K
 };
+G_STATIC_ASSERT(FTX_NBANDS == 11);   /* the KF lines above name every band */
 
 void ftx_settings_defaults(FtxSettings *s)
 {
@@ -45,6 +50,7 @@ void ftx_settings_defaults(FtxSettings *s)
   s->skip_tx1 = FALSE; s->rr73 = TRUE; s->watchdog_min = 6;
   g_strlcpy(s->tci_host, "127.0.0.1", sizeof s->tci_host); s->tci_port = 40001; s->connect_at_start = TRUE;
   s->tx_level_pct = 90; s->check_mode = TRUE;
+  for (int b = 0; b < FTX_NBANDS; b++) { s->freq_ft8[b] = (int)ftx_bands[b].ft8_hz; s->freq_ft4[b] = (int)ftx_bands[b].ft4_hz; }
   s->depth = 3; s->ap = TRUE; s->nfa = 200; s->nfb = 4000; s->clock_warn_dt = 0.5; s->show_dt_health = TRUE;
   s->palette = 0; s->rows_per_s = 8; s->wf_labels = TRUE; s->filter_op = 60;
   s->hl_cq = TRUE; s->dim_b4 = TRUE; s->keep_periods = 20; s->newest_first = FALSE; s->follow_new = TRUE;

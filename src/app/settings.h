@@ -11,6 +11,8 @@
 
 #include <glib.h>
 
+#include "bands.h"
+
 typedef struct {
   /* [station] */
   char     call[16];        /* my callsign                                  */
@@ -24,6 +26,9 @@ typedef struct {
   gboolean connect_at_start;
   int      tx_level_pct;    /* TX audio level, % of full scale               */
   gboolean check_mode;      /* refuse to key unless the radio is in DIGU/USB */
+  /* [frequencies] — dial frequency per band and mode, Hz (0 = none); the
+   * band switcher tunes the radio here over TCI.  WSJT-X defaults. */
+  int      freq_ft8[FTX_NBANDS], freq_ft4[FTX_NBANDS];
   /* [decoder] */
   int      depth;           /* 1..3                                         */
   gboolean ap;              /* a-priori decoding (incl. a7/a8)              */

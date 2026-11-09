@@ -9,9 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app/bands.h"
 #include "app/cty.h"
 #include "app/messages.h"
 #include "app/rx_engine.h"
+#include "app/tci_client.h"
 #include "app/tx_engine.h"
 #include "decode_list.h"
 #include "preferences.h"
@@ -34,7 +36,7 @@ struct _FtxWindow {
   FtxTxEngine    *tx;
   ftx_pack77_ctx *pc;
 
-  GtkWidget *toasts, *dial, *modelab, *title, *mode_dd, *monitor_btn, *paned, *lists, *line;
+  GtkWidget *toasts, *dial, *modelab, *title, *band_dd, *mode_dd, *monitor_btn, *paned, *lists, *line;
   FtxWaterfall  *wf;
   FtxDecodeList *band, *rxl;
   FtxQsoPanel   *qso;
@@ -43,6 +45,9 @@ struct _FtxWindow {
 
   gboolean connecting, connected;
   double   dial_hz;
+  gboolean band_syncing;      /* the band drop-down is following the dial      */
+  guint    digu_src;          /* pending modulation:digu after a retune        */
+  int      digu_tries;
 
   /* QSO state (WSJT-X names) */
   char     his_call[16], his_grid[8], rpt_rcvd[8];
@@ -127,6 +132,93 @@ static void update_dial(FtxWindow *win)
   gtk_label_set_text(GTK_LABEL(win->modelab), t);
   g_free(up);
   update_title(win);
+}
+
+/* ---- band switcher: tuning the radio over TCI ------------------------------ */
+
+/* The working frequency of the current mode on a band (Preferences ›
+ * Frequencies; WSJT-X defaults), 0 = none. */
+static long working_hz(FtxWindow *win, int band)
+{
+  if (band < 0 || band >= FTX_NBANDS) return 0;
+  return win->s->ft4 ? win->s->freq_ft4[band] : win->s->freq_ft8[band];
+}
+
+/* The drop-down shows the band the dial is on (nothing when out of band),
+ * and works only while connected. */
+static void sync_band_dd(FtxWindow *win)
+{
+  int b = win->connected ? ftx_band_for_hz(win->dial_hz) : -1;
+  win->band_syncing = TRUE;
+  gtk_drop_down_set_selected(GTK_DROP_DOWN(win->band_dd), b >= 0 ? (guint)b : GTK_INVALID_LIST_POSITION);
+  win->band_syncing = FALSE;
+  gtk_widget_set_sensitive(win->band_dd, win->connected);
+}
+
+static void tci_send(FtxWindow *win, const char *cmd)
+{
+  if (win->connected) ftx_tci_client_send(ftx_rx_engine_tci(win->eng), cmd);
+}
+
+static void cancel_digu(FtxWindow *win)
+{
+  if (win->digu_src) { g_source_remove(win->digu_src); win->digu_src = 0; }
+}
+
+/* DIGU goes out a moment after the vfo, not with it: sdr-for-linux restores
+ * the band-stack mode on its next GUI tick once the dial has crossed into
+ * another band, and a mode set before that tick is filed under the old band
+ * and then overridden (gui.c band_apply / on_mode_toggled).  Sent once
+ * unconditionally, then once more if the radio's echo still says otherwise. */
+static gboolean send_digu(gpointer user)
+{
+  FtxWindow *win = user;
+  win->digu_src = 0;
+  if (!win->connected) return G_SOURCE_REMOVE;
+  char *m = g_ascii_strdown(ftx_rx_engine_mode(win->eng), -1);
+  const gboolean digu = strcmp(m, "digu") == 0;
+  g_free(m);
+  if (win->digu_tries == 0 || !digu) tci_send(win, "modulation:0,digu;");
+  if (++win->digu_tries < 2) win->digu_src = g_timeout_add(700, send_digu, win);
+  return G_SOURCE_REMOVE;
+}
+
+/* Put the radio on hz in DIGU (vfo:0,0 = VFO A; sdr-for-linux recentres its
+ * panadapter when the dial leaves the span). */
+static void tune_radio(FtxWindow *win, long hz)
+{
+  if (!win->connected || hz <= 0) return;
+  if (win->transmitting || win->tuning) { toast(win, "Not while transmitting"); sync_band_dd(win); return; }
+  char cmd[48];
+  snprintf(cmd, sizeof cmd, "vfo:0,0,%ld;", hz);
+  tci_send(win, cmd);
+  cancel_digu(win);
+  win->digu_tries = 0;
+  win->digu_src = g_timeout_add(250, send_digu, win);
+}
+
+static void on_band(GObject *dd, GParamSpec *ps, gpointer user)
+{
+  (void)ps;
+  FtxWindow *win = user;
+  if (win->band_syncing) return;
+  guint sel = gtk_drop_down_get_selected(GTK_DROP_DOWN(dd));
+  if (sel == GTK_INVALID_LIST_POSITION || sel >= FTX_NBANDS) return;
+  /* Following the dial is not a request: GtkDropDown delivers the notify of
+   * a programmatic set_selected after the handler that made it has returned
+   * (seen headless 2026-11-09), so the flag alone would let a sync retune
+   * the radio — e.g. yank a hand-tuned dial back to the working frequency. */
+  if ((int)sel == ftx_band_for_hz(win->dial_hz)) return;
+  long hz = working_hz(win, (int)sel);
+  if (hz <= 0) {
+    char t[120];
+    snprintf(t, sizeof t, "No %s working frequency on %s — set one in Preferences › Frequencies",
+             win->s->ft4 ? "FT4" : "FT8", ftx_bands[sel].name);
+    toast(win, t);
+    sync_band_dd(win);
+    return;
+  }
+  tune_radio(win, hz);
 }
 
 static void apply_decoder_params(FtxWindow *win)
@@ -768,6 +860,7 @@ static void on_vfo(double hz, gpointer user)
   FtxWindow *win = user;
   win->dial_hz = hz;
   update_dial(win);
+  sync_band_dd(win);
 }
 
 static void set_audio_status(FtxWindow *win, gboolean tx)
@@ -803,6 +896,14 @@ static void set_tci_status(FtxWindow *win)
   ftx_status_bar_set_logger(win->sb, "● log-for-linux: not linked yet", FTX_STATUS_DIM);
 }
 
+static void on_radio_mode(const char *mode, gpointer user)
+{
+  (void)mode;
+  FtxWindow *win = user;
+  update_dial(win);
+  set_tci_status(win);
+}
+
 static void on_closed(gpointer user)
 {
   FtxWindow *win = user;
@@ -814,6 +915,8 @@ static void on_closed(gpointer user)
   set_tci_status(win);
   set_audio_status(win, FALSE);
   update_dial(win);
+  cancel_digu(win);
+  sync_band_dd(win);
   toast(win, "The TCI server closed the connection");
 }
 
@@ -851,6 +954,7 @@ static void connect_done(GObject *src, GAsyncResult *res, gpointer data)
   set_tci_status(win);
   set_audio_status(win, win->connected && ftx_rx_engine_tx(win->eng));
   update_dial(win);
+  sync_band_dd(win);
 }
 
 static void do_connect(FtxWindow *win)
@@ -874,9 +978,11 @@ static void do_disconnect(FtxWindow *win)
   ftx_rx_engine_disconnect(win->eng);
   win->connected = FALSE;
   ftx_qso_panel_set_tx_available(win->qso, FALSE, TX_UNAVAILABLE);
+  cancel_digu(win);
   set_tci_status(win);
   set_audio_status(win, FALSE);
   update_dial(win);
+  sync_band_dd(win);
 }
 
 /* ---- UI handlers ------------------------------------------------------------ */
@@ -902,6 +1008,10 @@ static void on_mode(GObject *dd, GParamSpec *ps, gpointer user)
   FtxWindow *win = user;
   win->s->ft4 = gtk_drop_down_get_selected(GTK_DROP_DOWN(dd)) == 1;
   apply_mode(win);
+  if (win->connected) {
+    long hz = working_hz(win, ftx_band_for_hz(win->dial_hz));
+    if (hz > 0 && (long)(win->dial_hz + 0.5) != hz) tune_radio(win, hz);
+  }
 }
 
 static void on_rx_clicked(FtxWaterfall *wf, double hz, gpointer user) { (void)wf; set_rx_hz(user, (int)(hz + 0.5)); }
@@ -1090,6 +1200,7 @@ static void ftx_window_dispose(GObject *obj)
 {
   FtxWindow *win = FTX_WINDOW(obj);
   if (win->tick_id) { g_source_remove(win->tick_id); win->tick_id = 0; }
+  cancel_digu(win);
   if (win->tx) { ftx_tx_engine_free(win->tx); win->tx = NULL; }
   if (win->eng) { ftx_rx_engine_free(win->eng); win->eng = NULL; }
   if (win->all_txt) { fclose(win->all_txt); win->all_txt = NULL; }
@@ -1125,6 +1236,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   ftx_rx_engine_set_period_cb(win->eng, on_period, win);
   ftx_rx_engine_set_row_cb(win->eng, on_row, win);
   ftx_rx_engine_set_vfo_cb(win->eng, on_vfo, win);
+  ftx_rx_engine_set_mode_cb(win->eng, on_radio_mode, win);
   ftx_rx_engine_set_tx_cb(win->eng, on_tx, win);
   ftx_rx_engine_set_closed_cb(win->eng, on_closed, win);
   win->tx = ftx_tx_engine_new(g_main_context_default());
@@ -1187,6 +1299,18 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   gtk_widget_set_valign(win->mode_dd, GTK_ALIGN_CENTER);
   g_signal_connect(win->mode_dd, "notify::selected", G_CALLBACK(on_mode), win);
   adw_header_bar_pack_end(ADW_HEADER_BAR(hdr), win->mode_dd);
+  {
+    const char *names[FTX_NBANDS + 1];
+    for (int b = 0; b < FTX_NBANDS; b++) names[b] = ftx_bands[b].name;
+    names[FTX_NBANDS] = NULL;
+    win->band_dd = gtk_drop_down_new_from_strings(names);
+  }
+  gtk_drop_down_set_selected(GTK_DROP_DOWN(win->band_dd), GTK_INVALID_LIST_POSITION);
+  gtk_widget_set_tooltip_text(win->band_dd, "Band: tunes the radio to the mode's working frequency (Preferences › Frequencies) and switches it to DIGU");
+  gtk_widget_set_valign(win->band_dd, GTK_ALIGN_CENTER);
+  gtk_widget_set_sensitive(win->band_dd, FALSE);
+  g_signal_connect(win->band_dd, "notify::selected", G_CALLBACK(on_band), win);
+  adw_header_bar_pack_end(ADW_HEADER_BAR(hdr), win->band_dd);
 
   /* waterfall over the lower panes */
   win->wf = FTX_WATERFALL(ftx_waterfall_new());
