@@ -419,5 +419,13 @@ run `clear_decodes()` = the menu's Clear decodes (both panes, the Band activity
 note, the waterfall).  A dial move inside the band does not clear (not asked;
 a nudge mid-QSO would wipe the panes).  Verified headless: FT8 → FT4 emptied
 full panes, the next period refilled them after a band change, 20 m → 17 m
-with full panes (21 decodes) emptied both panes, the note and the waterfall.  Next: the first live TX test (Tune into a dummy
-load).
+with full panes (21 decodes) emptied both panes, the note and the waterfall.
+**First live TX (2026-11-09 16:24–16:25, Richard: "zkusíme to na anténě… krátce
+menším výkonem")**: Tune from FTX on 14.080 (20 m, FT4 dial), antenna.  FTX keys
+with `trx:0,true,tci;` and streams the tone, so sdr-for-linux applies the band's
+**Drive** (not its Tune power): the first two overs had Drive 0/255 → MOX,
+PA on, ANT1, 0.00 W, the tone at the exciter at −1 dBFS peak (90 % FS); with
+Drive 23/255 four overs of 15.5–16.8 W forward, 0.00 W reverse, SWR 1.02–1.03,
+0 rf-muted slots, clean UNKEY each time (sdr-for-linux `tx:` log lines).  The
+TX path FTX → TCI → key → audio → RF is verified on the air; a real
+transmission (CQ) and the log-for-linux link are next.
