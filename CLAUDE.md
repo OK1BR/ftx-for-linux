@@ -410,4 +410,14 @@ gates (new `dev/tests/test_bands.c`).  Verified live by Richard the same afterno
 režim a vypadá to, že to funguje"); the sdr-for-linux log shows the designed
 sequence on the real radio: band change 16:13:04.868 → band_apply opens the
 mic in voice mode (band-stack mode) → 242 ms later "capture closed — non-voice
-mode" as our DIGU lands.  Next: the first live TX test (Tune into a dummy load).
+mode" as our DIGU lands.
+Then (Richard: "pásmo a režim musí vynulovat band a rx logy, seznamy v těch
+oknech… ty údaje už nejsou relevantní, patří na jiné pásmo"): a band change
+(the dial's band in `on_vfo` differs from the last one seen, `cur_band`;
+G_MININT until the first vfo so a start does not clear) and a mode change both
+run `clear_decodes()` = the menu's Clear decodes (both panes, the Band activity
+note, the waterfall).  A dial move inside the band does not clear (not asked;
+a nudge mid-QSO would wipe the panes).  Verified headless: FT8 → FT4 emptied
+full panes, the next period refilled them after a band change, 20 m → 17 m
+with full panes (21 decodes) emptied both panes, the note and the waterfall.  Next: the first live TX test (Tune into a dummy
+load).

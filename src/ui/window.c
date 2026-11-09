@@ -46,6 +46,7 @@ struct _FtxWindow {
   gboolean connecting, connected;
   double   dial_hz;
   gboolean band_syncing;      /* the band drop-down is following the dial      */
+  int      cur_band;          /* band of the dial last seen, G_MININT = none yet */
   guint    digu_src;          /* pending modulation:digu after a retune        */
   int      digu_tries;
 
@@ -132,6 +133,17 @@ static void update_dial(FtxWindow *win)
   gtk_label_set_text(GTK_LABEL(win->modelab), t);
   g_free(up);
   update_title(win);
+}
+
+/* Both decode panes and the waterfall: the menu's Clear decodes, and what a
+ * band or mode change does — the old decodes belong to another band or mode
+ * (Richard 2026-11-09: "pásmo a režim musí vynulovat band a rx logy"). */
+static void clear_decodes(FtxWindow *win)
+{
+  ftx_decode_list_clear(win->band);
+  ftx_decode_list_clear(win->rxl);
+  ftx_decode_list_set_note(win->band, "");        /* "21 decodes · 150500" was the old band's */
+  ftx_waterfall_clear(win->wf);
 }
 
 /* ---- band switcher: tuning the radio over TCI ------------------------------ */
@@ -859,6 +871,9 @@ static void on_vfo(double hz, gpointer user)
 {
   FtxWindow *win = user;
   win->dial_hz = hz;
+  int nb = ftx_band_for_hz(hz);
+  if (win->cur_band != G_MININT && nb != win->cur_band) clear_decodes(win);
+  win->cur_band = nb;
   update_dial(win);
   sync_band_dd(win);
 }
@@ -1008,6 +1023,7 @@ static void on_mode(GObject *dd, GParamSpec *ps, gpointer user)
   FtxWindow *win = user;
   win->s->ft4 = gtk_drop_down_get_selected(GTK_DROP_DOWN(dd)) == 1;
   apply_mode(win);
+  clear_decodes(win);
   if (win->connected) {
     long hz = working_hz(win, ftx_band_for_hz(win->dial_hz));
     if (hz > 0 && (long)(win->dial_hz + 0.5) != hz) tune_radio(win, hz);
@@ -1116,9 +1132,7 @@ static void act_clear(GSimpleAction *a, GVariant *p, gpointer user)
 {
   (void)a; (void)p;
   FtxWindow *win = user;
-  ftx_decode_list_clear(win->band);
-  ftx_decode_list_clear(win->rxl);
-  ftx_waterfall_clear(win->wf);
+  clear_decodes(win);
 }
 
 static void act_about(GSimpleAction *a, GVariant *p, gpointer user)
@@ -1380,6 +1394,7 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   set_tci_status(win);
   set_audio_status(win, FALSE);
   update_dial(win);
+  win->cur_band = G_MININT;
   win->tick_id = g_timeout_add(100, tick, win);
   tick(win);
   if (s->connect_at_start) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(win->monitor_btn), TRUE);

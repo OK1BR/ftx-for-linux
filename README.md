@@ -58,7 +58,8 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   with the radio's dial and mode, the band switcher (tunes the radio over
   TCI to the mode's working frequency — WSJT-X's defaults, editable in
   Preferences › Frequencies — and puts it into DIGU; FT8 ↔ FT4 moves to the
-  other mode's frequency on the band), the waterfall (callsigns on the traces,
+  other mode's frequency on the band; a band or mode change clears the decode
+  panes and the waterfall), the waterfall (callsigns on the traces,
   period tags, Rx/Tx brackets; click = Rx, right click = Tx), the two decode
   panes as in WSJT-X, the QSO panel (partner, the transmission card, Tx1–Tx6,
   auto-sequencer), the status bar (UTC, period, clock health from the mean
