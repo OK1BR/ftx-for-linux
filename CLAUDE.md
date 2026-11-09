@@ -568,3 +568,22 @@ wr_u16).  Next: push → `gh workflow run build.yml` dry run → notes EN + CZ
 approved → second "ano" for `gh release create v0.1.0 --target main` → the
 tag build attaches the artifacts → refresh ~/.local → AUR package (new,
 separate consent).
+
+**★ RELEASED 2026-11-09 evening: v0.1.0, the first release.**  Dry run
+42689782603 green (both jobs; the .deb/.rpm install tests with a window
+start passed; the dry-run AppImage also ran here under Broadway, found
+cty.dat and connected to the live TCI).  Notes EN + CZ approved, second
+"ano" for `gh release create v0.1.0 --target main --title "FTX for Linux
+0.1.0"`.  ⛔ The first tag build (42691426397) failed in "Determine
+version": the family's `grep -Po "version : '\K[^']+" meson.build` matched
+our gtk4/libadwaita `version : '>= …'` constraints too (three lines ≠ the
+tag; the dry run never compares).  Fixed with `grep -Pom1 "^\s+version :
+'\K…"` (d21dd58), and with Richard's "můžeš" the tag was moved there
+(annotated + signed — `tag.gpgsign` is on, a bare `git tag -f` asks for a
+message; `git push --force origin v0.1.0`), the release stayed; tag build
+42691902053 attached FTX_for_Linux-0.1.0-x86_64.AppImage,
+ftx-for-linux_0.1.0_amd64.deb and ftx-for-linux-0.1.0-1.x86_64.rpm.  The
+public AppImage embeds 0.1.0 and runs here.  PKGBUILD sha256 recomputed
+after the move (9d12ccb; the tarball verified to carry the fix).  ~/.local
+refreshed to 0.1.0.  Not done: the AUR package (new for FTX, separate
+consent); the live instance still runs from the build tree.
