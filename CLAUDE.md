@@ -613,7 +613,7 @@ DXCC colour ff00ff) = the DE station's DXCC entity is not in the log on this
 band and mode (entities resolved from the logged calls through cty.dat, WAE-only
 entities folded into their DXCC entity; the set is rebuilt after every log
 change), and it takes a magenta back (invalid colour) once a logged QSO makes it
-stale.  FTX: `win->newdx`, `FtxDecodeRow.de/new_dxcc`, the purple `DXCC` tag
+stale.  FTX: `win->newdx`, `FtxDecodeRow.de/new_dxcc`, the `DXCC` tag as a white outline (purple first: "růžová mi tam nesedí")
 (`.tag-dxcc`), `[display] tag_dxcc` (default on, Preferences › Display › Decode
 lists › Tag new countries).  A verdict arrives after its line was added, so
 `ftx_decode_list_mark` redraws the lines of the running period — B4 no longer
