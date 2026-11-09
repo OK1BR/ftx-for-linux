@@ -427,5 +427,11 @@ with `trx:0,true,tci;` and streams the tone, so sdr-for-linux applies the band's
 PA on, ANT1, 0.00 W, the tone at the exciter at −1 dBFS peak (90 % FS); with
 Drive 23/255 four overs of 15.5–16.8 W forward, 0.00 W reverse, SWR 1.02–1.03,
 0 rf-muted slots, clean UNKEY each time (sdr-for-linux `tx:` log lines).  The
-TX path FTX → TCI → key → audio → RF is verified on the air; a real
-transmission (CQ) and the log-for-linux link are next.
+TX path FTX → TCI → key → audio → RF is verified on the air.
+**First QSO on the air with FTX, 2026-11-09 15:38–15:39 UTC, 14.080 FT4, 16 W:**
+Call CQ ("CQ OK1BR JO70" at 1773 Hz, every second period) → G7BTP IO93 answered
+on the second CQ (−5 dB, DT −0.5) → the sequencer sent "G7BTP OK1BR -05" →
+"OK1BR G7BTP R+03" → "G7BTP OK1BR RR73" → "OK1BR G7BTP 73"; auto TX stopped
+after our RR73 (cease_auto_Tx_after_QSO).  Four overs of 16.8–16.9 W, 0 muted
+slots.  Richard: "hned to chytlo a udělalo se jedno QSO".  Logged by hand in
+log-for-linux (Log QSO is not linked yet) — the link is the next step.
