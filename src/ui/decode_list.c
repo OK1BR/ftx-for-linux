@@ -3,6 +3,7 @@
 #include "decode_list.h"
 
 #include <stdio.h>
+#include <string.h>
 
 struct _FtxDecodeList {
   GtkWidget parent_instance;
@@ -71,6 +72,16 @@ static GtkWidget *make_row(const FtxDecodeRow *d)
   if (d->kind == FTX_DECODE_TX) snprintf(buf, sizeof buf, "%06d  Tx      %4d  %s", d->nutc, d->freq, d->msg);
   else snprintf(buf, sizeof buf, "%06d %3d %s %4d  %s", d->nutc, d->snr, dts, d->freq, d->msg);
   GtkWidget *lab = gtk_label_new(buf);
+  if (d->country[0]) {
+    /* the country in dim type at WSJT-X's column (displaytext.cpp
+     * leftJustifyAppendage: a fixed column while the message is short, else
+     * it floats right); one label, so a narrow pane cuts the country first */
+    char *text = g_markup_escape_text(buf, -1), *ctry = g_markup_escape_text(d->country, -1);
+    size_t len = strlen(buf), pad = len < 40 ? 41 - len : 1;   /* col 41: WSJT-X pads to 40 then a nbsp */
+    char *mk = g_strdup_printf("%s%*s<span alpha=\"60%%\">%s</span>", text, (int)pad, "", ctry);
+    gtk_label_set_markup(GTK_LABEL(lab), mk);
+    g_free(mk); g_free(text); g_free(ctry);
+  }
   gtk_label_set_xalign(GTK_LABEL(lab), 0);
   gtk_label_set_single_line_mode(GTK_LABEL(lab), TRUE);
   gtk_label_set_ellipsize(GTK_LABEL(lab), PANGO_ELLIPSIZE_END);   /* a narrow pane shortens the line, the window need not grow */

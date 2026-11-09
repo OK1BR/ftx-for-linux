@@ -42,6 +42,7 @@ typedef struct {
   gboolean wf_labels;       /* callsigns on the waterfall                   */
   gboolean hl_cq;
   gboolean dim_b4;
+  int      country;         /* country after the message: 0 off, 1 CQ calls (WSJT-X "Show DXCC…"), 2 all messages */
   int      keep_periods;    /* Band activity history                        */
   gboolean newest_first;    /* lists: the latest period at the top          */
   gboolean follow_new;      /* lists: jump to the newest period on every decode */

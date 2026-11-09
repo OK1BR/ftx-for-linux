@@ -277,3 +277,28 @@ gboolean ftx_grid_az_dist(const char *mygrid, const char *hisgrid, double *az, d
   *az = fmod(atan2(y, x) / d2r + 360.0, 360.0);
   return TRUE;
 }
+
+/* displaytext.cpp @ v3.0.2 (DisplayText::displayDecodedText, the
+ * show_country_names branch, and appendWorkedB4): the same replacements in
+ * the same order.  One deviation: "French " becomes "Fr. " with the space
+ * ("Fr. Polynesia"; WSJT-X writes "Fr.Polynesia"). */
+void ftx_msg_country_short(const char *name, char *out, gsize n)
+{
+  static const char *const rep[][2] = {
+    { "Islands", "Is." }, { "Island", "Is." },
+    { "North ", "N. " }, { "Northern ", "N. " }, { "South ", "S. " },
+    { "East ", "E. " }, { "Eastern ", "E. " }, { "West ", "W. " }, { "Western ", "W. " },
+    { "Central ", "C. " }, { " and ", " & " }, { "Republic", "Rep." },
+    { "United States of America", "U.S.A." }, { "United States", "U.S.A." },
+    { "Fed. Rep. of ", "" }, { "French ", "Fr. " },
+    { "Asiatic", "AS" }, { "European", "EU" }, { "African", "AF" },
+    /* WAE-only entities shown as their DXCC entity ("Include extra WAE entities" off) */
+    { "Bear Is.", "Svalbard" }, { "Shetland Is.", "Scotland" }, { "AF Italy", "Italy" },
+    { "Sicily", "Italy" }, { "Vienna Intl Ctr", "Austria" }, { "AF Turkey", "Turkey" },
+    { "EU Turkey", "Turkey" },
+  };
+  GString *g = g_string_new(name ? name : "");
+  for (gsize i = 0; i < G_N_ELEMENTS(rep); i++) g_string_replace(g, rep[i][0], rep[i][1], 0);
+  g_strlcpy(out, g->str, n);
+  g_string_free(g, TRUE);
+}

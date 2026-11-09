@@ -504,5 +504,27 @@ binary nothing came back, because it learns dial and mode from Status and
 FTX sent one only on changes — now FTX sends a Status at every period end
 (WSJT-X does around each decode cycle), and the sniff on lo showed a yellow
 Highlight for LZ2TS (worked today on 20 m FT4) in each period it was
-decoded, nothing for the others.  The log-for-linux commit (e79555c) is
-local until Richard says push.
+decoded, nothing for the others.  The log-for-linux commit (e79555c) was
+pushed the same evening with Richard's "to se mi líbí, můžeš to uložit na github".
+
+**Country in the decode lists (2026-11-09 evening, Richard: "zvýraznění země
+určitě budeme chtít")**: the DE station's DXCC entity stands in dim type after
+the message, at WSJT-X's column (displaytext.cpp `leftJustifyAppendage`: a
+fixed column while the message is short, else it floats right; one Pango
+markup label with `alpha="60%"`, so a narrow pane cuts the country first).
+`FtxDecodeRow.country` is filled in `on_decode` from `ftx_cty_lookup` of the
+tokenizer's w2 (the DE call, also for "CQ DX …") through
+`ftx_msg_country_short` (messages.c: WSJT-X's abbreviations in its order —
+Islands → Is., Republic → Rep., "Fed. Rep. of " dropped, United States →
+U.S.A., European/Asiatic → EU/AS, …, and its merge of the WAE-only entities
+into their DXCC entity: Sicily/African Italy → Italy, Bear Is. → Svalbard,
+Shetland Is. → Scotland, Vienna Intl Ctr → Austria; one deviation: "Fr. "
+keeps its space).  Setting `[display] country`: 0 off, 1 CQ calls (default;
+WSJT-X's "Show DXCC, grid, and worked-before status"), 2 all messages
+(WSJT-X's "Show DXCC for all messages"), Preferences › Display › Decode lists
+› Country; read per decode, so a change applies to new lines.  The console's
+partner line keeps the full entity name.  Verified headless against the mock
+(user theme, FT8 sample): CQ lines "CQ EA2BFM IN83 … Spain", "CQ DX DL8YHR
+JO41 … Germany", the rest bare; with 2 every line (Spain, Hungary, Crete,
+Germany) with the → me tags after the country.  Vectors for the abbreviations
+in `test_messages`; 82 gates green.

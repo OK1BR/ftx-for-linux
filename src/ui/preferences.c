@@ -290,6 +290,9 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   sw(c, g, "Newest period first", "the latest decodes at the top, older periods below", &s->newest_first);
   sw(c, g, "Follow new decodes", "scroll to the newest period after every decode, even after you scrolled away", &s->follow_new);
   sw(c, g, "Highlight CQ", NULL, &s->hl_cq);
+  static const char *const ctry[] = { "Off", "CQ calls", "All messages", NULL };
+  s->country = CLAMP(s->country, 0, 2);
+  combo(c, g, "Country", "the DE station's DXCC entity after the message (cty.dat), as WSJT-X shows it; applies to new decodes", ctry, &s->country);
   spin(c, g, "Keep periods", "how many periods stay in Band activity", 1, 60, 1, 0, &s->keep_periods, NULL);
   return d;
 }

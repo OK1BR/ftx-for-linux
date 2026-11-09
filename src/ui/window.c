@@ -968,11 +968,18 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
   }
 
   FtxDecodeRow row;
+  memset(&row, 0, sizeof row);
   row.nutc = d->nutc; row.snr = d->snr; row.dt = d->dt; row.freq = (int)(d->freq + 0.5f);
   g_strlcpy(row.msg, d->msg, sizeof row.msg);
   row.ft4 = d->ft4;
   row.nap = d->nap;
   row.qual = d->qual;
+  /* the DE station's country after the message (displaytext.cpp: CQ calls
+   * with "Show DXCC…", every message with "Show DXCC for all messages") */
+  if (win->cty && w2[0] && (win->s->country == 2 || (win->s->country == 1 && is_cq))) {
+    FtxCtyInfo ci;
+    if (ftx_cty_lookup(win->cty, w2, &ci)) ftx_msg_country_short(ci.country, row.country, sizeof row.country);
+  }
   const gboolean b4 = w2[0] && g_hash_table_contains(win->b4, w2);
   row.kind = for_us ? FTX_DECODE_TO_ME : (b4 && win->s->dim_b4) ? FTX_DECODE_B4 : (is_cq && win->s->hl_cq) ? FTX_DECODE_CQ : FTX_DECODE_PLAIN;
   ftx_decode_list_add(win->band, &row);

@@ -28,6 +28,7 @@ typedef struct {
   gboolean ft4;
   int   nap;        /* a-priori type used (0 = none), shown as "aN" like jt9 */
   float qual;       /* AP quality; < 0.17 = low confidence, jt9's "?"       */
+  char  country[24]; /* the DE station's country, dim after the message; "" = none */
 } FtxDecodeRow;
 
 GtkWidget *ftx_decode_list_new(const char *title);

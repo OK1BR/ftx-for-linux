@@ -47,6 +47,11 @@ gboolean ftx_msg_is_standard(ftx_pack77_ctx *pc, const char *msg);
 gboolean ftx_msg_tokens(const char *msg, char w1[16], char w2[16], char w3[16], char w4[16]);
 /* deCallAndGrid: the DE call and whatever stands in the grid position. */
 void     ftx_msg_de_call_and_grid(const char *msg, char call[16], char grid[8]);
+/* The country name as the decode lists show it: WSJT-X's abbreviations from
+ * displaytext.cpp ("Fed. Rep. of Germany" → "Germany", "United States" →
+ * "U.S.A.", "Islands" → "Is.", …) and its merge of the WAE-only entities
+ * into their DXCC entity (Sicily → Italy, Bear Is. → Svalbard, …). */
+void     ftx_msg_country_short(const char *name, char *out, gsize n);
 
 /* DecodedText::report: SNR → "+dd"/"-dd" (clamped to -50..49). */
 void     ftx_msg_report_string(int snr, char rpt[8]);
