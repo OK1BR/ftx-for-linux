@@ -227,6 +227,10 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   sw(c, g, "Skip Tx1", "start a QSO with the report (Tx2) instead of the grid (Tx1)", &s->skip_tx1);
   sw(c, g, "RR73 instead of RRR", "Tx4 ends the QSO with RR73", &s->rr73);
   sw(c, g, "Double-click enables TX", "a double-click on a decode selects the station and starts calling in our next period; off = it only selects", &s->dclick_tx);
+  g = group(p, "When nobody answers", "TX switches itself off and the console says why.  0 = no limit.");
+  spin(c, g, "CQ calls", "CQs sent without an answer", 0, 99, 1, 0, &s->max_cq, NULL);
+  spin(c, g, "Calls to a station", "the same step of a QSO sent again and again: the first call, a report, RRR", 0, 99, 1, 0, &s->max_repeats, NULL);
+  spin(c, g, "Watchdog, minutes", "the same message for this long, a CQ or not", 0, 60, 1, 0, &s->watchdog_min, NULL);
 
   p = page(pd, "Radio", "radio", "network-wireless-symbolic");
   g = group(p, "TCI server", "sdr-for-linux or icom-for-linux.  Empty = the radio on this machine: its Unix socket first, then ws://127.0.0.1:40001.  "

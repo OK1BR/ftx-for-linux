@@ -86,6 +86,10 @@ struct _FtxWindow {
   char     last_sent[38];     /* m_lastMessageSent                        */
   int      watchdog_count;    /* consecutive transmissions of the same message */
   char     watchdog_msg[38];
+  int      rep_count;         /* transmissions of the same step: Tx6, or TxN to rep_call */
+  int      rep_ntx;
+  char     rep_call[16];
+  char     tx_note[96];       /* why TX switched itself off, until the operator acts */
 
   /* last period statistics */
   int      last_nutc;
@@ -576,7 +580,7 @@ static void update_card(FtxWindow *win)
   gboolean odd = ((gint64)floor(secs / p)) % 2 == 1;
   gboolean ours_now = (odd != win->tx_first);     /* tx_first = we transmit in the even period */
   int start = (int)(floor(secs / p) * p);
-  char state[112], detail[48];
+  char state[224], detail[48];
   const char *msg = win->msgs.tx[win->ntx - 1];
   FtxTxBadge badge = FTX_TX_BADGE_RX;
   const gboolean autoseq = ftx_qso_panel_get_auto_seq(win->qso);
@@ -602,7 +606,8 @@ static void update_card(FtxWindow *win)
     snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->ntx, win->s->tx_hz);
     badge = FTX_TX_BADGE_ARMED;
   } else {
-    snprintf(state, sizeof state, "%s · %s period %02d%02d%02d · %.0f s left · our slot%s", win->connected ? "Receiving" : "Not connected",
+    snprintf(state, sizeof state, "%s%s%s · %s period %02d%02d%02d · %.0f s left · our slot%s", win->tx_note, win->tx_note[0] ? " · " : "",
+             win->connected ? "Receiving" : "Not connected",
              odd ? "odd" : "even", start / 3600, (start / 60) % 60, start % 60, p - into, ours_now ? "" : " next");
     snprintf(detail, sizeof detail, "Tx%d · %d Hz", win->ntx, win->s->tx_hz);
   }
@@ -663,13 +668,31 @@ static void disable_tx(FtxWindow *win)
   update_card(win);
 }
 
+/* the operator starts over: the watchdog and the repeat limits count from here */
+static void rearm(FtxWindow *win)
+{
+  win->watchdog_count = 0;
+  win->rep_count = 0;
+  win->tx_note[0] = '\0';
+}
+
+/* TX switched itself off: say why, on the console until the operator acts */
+static void give_up(FtxWindow *win, const char *why)
+{
+  g_strlcpy(win->tx_note, why, sizeof win->tx_note);
+  toast(win, why);
+  win->watchdog_count = 0;
+  win->rep_count = 0;
+  disable_tx(win);
+}
+
 /* auto_tx_mode (true): Enable TX switched on by the program */
 static void enable_tx(FtxWindow *win)
 {
+  rearm(win);
   if (win->tx_enabled || !win->connected || win->tuning) return;
   win->tx_enabled = TRUE;
   ftx_qso_panel_set_tx_enabled(win->qso, TRUE);
-  win->watchdog_count = 0;
   win->tx_period_idx = -1;
   update_card(win);
   send_status(win);
@@ -703,10 +726,25 @@ static void start_transmission(FtxWindow *win, gint64 period_start_us)
   if (strcmp(msg, win->watchdog_msg) == 0) win->watchdog_count++;
   else { win->watchdog_count = 1; g_strlcpy(win->watchdog_msg, msg, sizeof win->watchdog_msg); }
   if (win->s->watchdog_min > 0 && win->watchdog_count * 2 * period_s(win) > win->s->watchdog_min * 60.0) {
-    toast(win, "TX watchdog: the same message for too long — TX disabled");
-    win->watchdog_count = 0;
-    disable_tx(win);
+    give_up(win, "TX off: the watchdog — the same message for too long");
     return;
+  }
+  /* the limits of Preferences › Station: the CQ, or the same step of the QSO
+   * with the same station, sent that many times with nothing coming back
+   * (the step, not the text: his report may change while he repeats himself) */
+  {
+    const gboolean cq = win->ntx == 6;
+    const char *key = cq ? "" : win->his_call;
+    if (win->rep_ntx == win->ntx && strcmp(win->rep_call, key) == 0) win->rep_count++;
+    else { win->rep_count = 1; win->rep_ntx = win->ntx; g_strlcpy(win->rep_call, key, sizeof win->rep_call); }
+    const int limit = cq ? win->s->max_cq : win->s->max_repeats;
+    if (limit > 0 && win->rep_count > limit) {
+      char why[96];
+      if (cq) snprintf(why, sizeof why, "TX off: no answer to %d CQ%s", limit, limit == 1 ? "" : "s");
+      else snprintf(why, sizeof why, "TX off: %s did not answer %d call%s", key[0] ? key : "the station", limit, limit == 1 ? "" : "s");
+      give_up(win, why);
+      return;
+    }
   }
   gint64 start = period_start_us + (gint64)((win->s->ft4 ? FTX_TX_DELAY_FT4 : FTX_TX_DELAY_FT8) * 1e6);
   char sent[38];
@@ -827,6 +865,7 @@ static void halt_tx(FtxWindow *win)
   ftx_tx_engine_stop(win->tx);
   win->tuning = FALSE;
   ftx_qso_panel_set_tune(win->qso, FALSE);
+  win->tx_note[0] = '\0';
   disable_tx(win);
 }
 
@@ -1046,7 +1085,11 @@ static void process_message(FtxWindow *win, const FtxDecodeRow *d, gboolean doub
   gen_messages(win);
   apply_decoder_params(win);
   /* quick_call ("Double-click on call sets Tx enable"): the call goes out in our next period */
-  if (double_clicked && win->s->dclick_tx) enable_tx(win);
+  if (double_clicked) {
+    rearm(win);
+    if (win->s->dclick_tx) enable_tx(win);
+    else update_card(win);
+  }
 }
 
 /* ---- engine callbacks (main context) --------------------------------------- */
@@ -1417,6 +1460,7 @@ static void on_qso_action(FtxQsoPanel *q, int action, gpointer user)
     win->progress = CALLING;
     win->calling_cq = TRUE;
     set_ntx(win, 6);
+    rearm(win);
     if (win->connected) {
       win->tx_enabled = TRUE;
       ftx_qso_panel_set_tx_enabled(q, TRUE);
@@ -1425,7 +1469,7 @@ static void on_qso_action(FtxQsoPanel *q, int action, gpointer user)
     break;
   case FTX_QSO_ACTION_ENABLE_TX:
     win->tx_enabled = ftx_qso_panel_get_tx_enabled(q) && win->connected;
-    if (win->tx_enabled) { win->watchdog_count = 0; win->tx_period_idx = -1; }
+    if (win->tx_enabled) { rearm(win); win->tx_period_idx = -1; }
     update_card(win);
     send_status(win);
     break;

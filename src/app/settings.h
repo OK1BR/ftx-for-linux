@@ -21,6 +21,8 @@ typedef struct {
   gboolean rr73;            /* Tx4 = RR73 (else RRR)                        */
   gboolean dclick_tx;       /* a double-click on a decode also enables TX   */
   int      watchdog_min;    /* TX watchdog, minutes                         */
+  int      max_cq;          /* CQ calls without an answer, 0 = no limit     */
+  int      max_repeats;     /* the same step of a QSO sent again, 0 = none  */
   /* [radio] */
   char     tci_server[160]; /* "unix:/path", "ws://host:port" or "" = the local radio: sdr-for-linux's
                                socket, then ws://127.0.0.1:40001 (ftx_tci_client_new)                 */

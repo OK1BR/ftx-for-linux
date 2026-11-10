@@ -793,3 +793,26 @@ sample's "K1JT HA0DU KN07" makes the sequencer take over a CQ.
 Live the same night (build eafc5cb installed, instance restarted with Richard's
 "muzes"): two "CQ OK1BR JO70" in odd periods in ALL.TXT, Richard: "vypadá to
 funkční"; issue #4 closed with his "muzes".  Open: #5–#8.
+
+2026-11-10 (night): **#6 + #7 the repeat limits** (Richard: "maximální počet
+opakování požadavku… stanice zmizí uprostřed spojení a mě to pak odesílá
+odpověď pořád dokola", "maximální počet cq… např. aby jich prošlo 10", "tohle
+i ten předchozí musí jít nastavit v nastavení"; defaults from him: 10 CQs, 4
+inside a QSO).  `start_transmission` counts the transmissions of the same
+step — Tx6, or TxN to the same station (the step, not the text: the report
+in our message follows his SNR while he repeats himself) — and when the
+count would pass `[station] max_cq` (10) / `max_repeats` (4; 0 = no limit)
+`give_up()` switches TX off, toasts and leaves the reason in front of the
+console's state line ("TX off: no answer to 10 CQs", "TX off: HG0NPJ did not
+answer 4 calls") until the operator acts.  `rearm()` (Enable TX, Call CQ, a
+double-click, Halt) restarts the counts and clears the note.  The time
+watchdog stays as the backstop and got its row: Preferences › Station › "When
+nobody answers" has CQ calls, Calls to a station, Watchdog minutes.
+Verified headless against the mock with both limits at 2 (window maximised
+so the state line shows): Call CQ → Tx rows 220515 and 220545, nothing at
+220615, the note on the console, Enable TX off, the mock keyed twice; a
+double-click → two "HB9CQK K1ABC FN20" (220700, 220730), nothing at 220800,
+"TX off: HB9CQK did not answer 2 calls"; the three rows in Preferences.
+Not verified: on the air.  Seen in that run, WSJT-X's own behaviour
+(DecodedText::report takes a report from the DX call to anyone): a
+double-click on "N1PJT HB9CQK -10" shows "received -10".

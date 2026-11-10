@@ -18,6 +18,7 @@ static const struct key {
   K("station", "skip_tx1", T_BOOL, skip_tx1), K("station", "rr73", T_BOOL, rr73),
   K("station", "dclick_tx", T_BOOL, dclick_tx),
   K("station", "watchdog_min", T_INT, watchdog_min),
+  K("station", "max_cq", T_INT, max_cq), K("station", "max_repeats", T_INT, max_repeats),
   K("radio", "tci_server", T_STR, tci_server),
   K("radio", "connect_at_start", T_BOOL, connect_at_start),
   K("radio", "tx_level_pct", T_INT, tx_level_pct), K("radio", "check_mode", T_BOOL, check_mode),
@@ -56,6 +57,7 @@ void ftx_settings_defaults(FtxSettings *s)
 {
   memset(s, 0, sizeof *s);
   s->skip_tx1 = FALSE; s->rr73 = TRUE; s->dclick_tx = TRUE; s->watchdog_min = 6;
+  s->max_cq = 10; s->max_repeats = 4;
   s->tci_server[0] = '\0'; s->connect_at_start = TRUE;
   s->tx_level_pct = 90; s->check_mode = TRUE;
   for (int b = 0; b < FTX_NBANDS; b++) { s->freq_ft8[b] = (int)ftx_bands[b].ft8_hz; s->freq_ft4[b] = (int)ftx_bands[b].ft4_hz; }
