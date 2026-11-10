@@ -774,3 +774,4 @@ key-up, "tci: Stream block truncated (2048 samples), dropped": sdr-for-linux
 sends TX_CHRONO frames (type 3, a header alone whose length is the samples
 it wants; `tci_server_tx_chrono`) to the client that holds TX, and
 `handle_block` checked the length before the type.  Fixed: the type first.
+Issue #3 closed with Richard's "ano"; open: #4–#8.
