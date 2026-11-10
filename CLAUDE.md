@@ -738,3 +738,4 @@ build (installed to ~/.local, live instance restarted 20:38 with Richard's
 then held 18 spots heard after the restart.  Not verified live: UDP against
 the real collector (Richard runs TCP).  `/tmp/ftx-live/restart.sh` copies
 the environment with `cp -f` (the copy of /proc/PID/environ is mode 0400).
+Issue #1 closed 2026-11-10 with Richard's "ano"; no open issues.
