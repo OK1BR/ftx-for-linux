@@ -106,7 +106,7 @@ static GtkWidget *make_box(const FtxDecodeRow *d)
     gtk_box_append(GTK_BOX(box), t);
   }
   if (d->new_dxcc && d->kind != FTX_DECODE_B4 && d->kind != FTX_DECODE_TX) {
-    GtkWidget *t = gtk_label_new("DXCC"); gtk_widget_add_css_class(t, "tag"); gtk_widget_add_css_class(t, "tag-dxcc");
+    GtkWidget *t = gtk_label_new("new DXCC"); gtk_widget_add_css_class(t, "tag"); gtk_widget_add_css_class(t, "tag-dxcc");
     gtk_widget_set_tooltip_text(t, "New DXCC entity on this band and mode (not in the log)");
     gtk_box_append(GTK_BOX(box), t);
   }
