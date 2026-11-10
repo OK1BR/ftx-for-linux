@@ -711,3 +711,25 @@ pskreporter.info (Richard's call on the air; an outward action, his consent).
 Headless pitfall: a CDP `mouseWheel` event kills gtk4-broadwayd (and the app
 with it) and the CDP call never returns — no wheel under Broadway, and every
 helper call under `timeout`.
+
+2026-11-10 (evening): **#1 live.**  Richard switched spotting on (antenna
+"HexBeam", Use TCP) and pskreporter.info accepts the reports: a query for
+receiver OK1BR (`retrieve.pskreporter.info/query?receiverCallsign=OK1BR&flowStartSeconds=-3600&rronly=1&nolocator=1`)
+returned 92 reception reports half an hour later (80 m FT8, one 20 m FT4),
+call / frequency / SNR / period time equal to ALL.TXT line for line, and a
+report captured on the wire (`sudo tcpdump … port 4739`, decoded by
+`dev/tools/pskreporter_collector.py`) reads as built: both templates, the
+receiver record with rigInformation "SDR-for-Linux", 36 spots.
+**Bug found live, fixed:** on TCP the client dropped its own connection 20 s
+after every connect and logged "the collector closed the connection" —
+`g_socket_client_set_timeout()` stays on the socket GSocketClient hands over,
+and a GSocket source fires after that long without traffic, so the read watch
+took 20 quiet seconds for a close (the capture shows our FIN first; an idle
+connection of our own to the collector stayed open 150 s).  A report went out
+only when the 121 s timer fell into those 20 s (the first one after an hour).
+Fix: `g_socket_set_timeout(s, 0)` once connected; the watch now tells a close
+from an error.  Gate `/pskreporter/tcp-idle` waits out the connect timeout
+(22 s; it fails on the old code with the live log line).  The collector's
+author on wsjt-devel (2020-06-07): the TCP listener takes the same messages
+and closes the connection when one is invalid.  Not verified live: UDP
+against the real collector (Richard runs TCP).

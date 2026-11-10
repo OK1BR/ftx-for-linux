@@ -410,9 +410,10 @@ static gboolean on_tcp_readable(GSocket *sock, GIOCondition cond, gpointer user)
   const gssize n = g_socket_receive(sock, buf, sizeof buf, NULL, &err);
   if (n > 0) return G_SOURCE_CONTINUE;                       /* the collector has nothing to say; ignore */
   if (n < 0 && g_error_matches(err, G_IO_ERROR, G_IO_ERROR_WOULD_BLOCK)) { g_clear_error(&err); return G_SOURCE_CONTINUE; }
-  g_clear_error(&err);
   /* RemoteHostClosedError: disconnect; the next report opens a new stream */
-  g_message("PSK Reporter: the collector closed the connection");
+  if (n == 0) g_message("PSK Reporter: the collector closed the connection");
+  else g_message("PSK Reporter: the connection broke: %s", err->message);
+  g_clear_error(&err);
   drop_socket(p);
   p->retry_at_us = g_get_monotonic_time() + RETRY_US;
   notify(p);
@@ -468,6 +469,10 @@ static void tcp_connected(GObject *src, GAsyncResult *res, gpointer user)
   } else {
     p->conn = c;
     GSocket *s = g_socket_connection_get_socket(c);
+    /* the connect timeout stays on the socket GSocketClient hands over, and a
+     * GSocket source fires once that long passes without traffic: off, or the
+     * watch below takes 20 quiet seconds for the collector closing the stream */
+    g_socket_set_timeout(s, 0);
     p->watch = g_socket_create_source(s, G_IO_IN | G_IO_HUP | G_IO_ERR, NULL);
     g_source_set_callback(p->watch, G_SOURCE_FUNC(on_tcp_readable), p, NULL);
     g_source_attach(p->watch, NULL);
@@ -555,7 +560,7 @@ static void reconnect(FtxPskReporter *p)
   struct attempt *a = attempt_new(p);
   if (p->use_tcp) {
     GSocketClient *client = g_socket_client_new();
-    g_socket_client_set_timeout(client, 20);
+    g_socket_client_set_timeout(client, FTX_PSK_CONNECT_TIMEOUT);
     g_socket_client_set_enable_proxy(client, FALSE);   /* straight to the collector, as the UDP datagrams go */
     g_socket_client_connect_async(client, to, p->cancel, tcp_connected, a);
     g_object_unref(client);

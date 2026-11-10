@@ -39,6 +39,7 @@ G_BEGIN_DECLS
 #define FTX_PSK_CACHE_TIMEOUT     300                               /* seconds before a call is spotted again */
 #define FTX_PSK_MAX_UDP_PAYLOAD   (1000 - 40 - 8)                   /* IP packet 1000 - IPv6 header - UDP header */
 #define FTX_PSK_MAX_TCP_PAYLOAD   0xffff
+#define FTX_PSK_CONNECT_TIMEOUT   20                                /* seconds for a TCP connection to open */
 
 /* ---- the packet builder (pure; PSKReporterIPFIX.cpp) ------------------------ */
 
