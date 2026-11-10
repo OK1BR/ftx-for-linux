@@ -731,5 +731,10 @@ Fix: `g_socket_set_timeout(s, 0)` once connected; the watch now tells a close
 from an error.  Gate `/pskreporter/tcp-idle` waits out the connect timeout
 (22 s; it fails on the old code with the live log line).  The collector's
 author on wsjt-devel (2020-06-07): the TCP listener takes the same messages
-and closes the connection when one is invalid.  Not verified live: UDP
-against the real collector (Richard runs TCP).
+and closes the connection when one is invalid.  Verified live on the fixed
+build (installed to ~/.local, live instance restarted 20:38 with Richard's
+"muzes"): one connection for five minutes, reports of 1540 and 792 bytes
+121 s apart, both acknowledged, no close line in the log; pskreporter.info
+then held 18 spots heard after the restart.  Not verified live: UDP against
+the real collector (Richard runs TCP).  `/tmp/ftx-live/restart.sh` copies
+the environment with `cp -f` (the copy of /proc/PID/environ is mode 0400).
