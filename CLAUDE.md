@@ -816,3 +816,12 @@ double-click → two "HB9CQK K1ABC FN20" (220700, 220730), nothing at 220800,
 Not verified: on the air.  Seen in that run, WSJT-X's own behaviour
 (DecodedText::report takes a report from the DX call to anyone): a
 double-click on "N1PJT HB9CQK -10" shows "received -10".
+
+**End of 2026-11-10.**  Live instance on 0852b1b (installed to ~/.local,
+restarted with Richard's "zkus to"); he sees the three rows in Preferences
+and tests the limits on the air tomorrow ("na 20m není už žádný provoz") —
+#6 and #7 stay open until then, each closed with its own comment and his
+"ano".  Open after that: #5 (a waterfall span of its own) and #8 (hold TX
+while the called station works someone else; read WSJT-X's "Wait & Call" —
+`DX_Call_Button`, `stopWCTimer` in mainwindow.cpp — before designing it).
+Closed today: #1, #3, #4.  No release until Richard asks for one.
