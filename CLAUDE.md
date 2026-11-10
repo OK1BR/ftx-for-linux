@@ -648,6 +648,14 @@ it was captured and decodes as "CQ OK1BR JO70" at 710 Hz, DT 0.0, first block
 0.352 s into the period; a stale socket file and a missing one fall back to
 TCP; `wss://x` is refused as an address.  Against the real radio (receive
 only, seconds): the default order connects to
-`unix:/run/user/1000/sdr-for-linux/tci.sock`.  Not yet done: the live GUI on
-the socket with the server's TCP listener off and one transmission (Richard's
-radio), and the Preferences row was not looked at headless.
+`unix:/run/user/1000/sdr-for-linux/tci.sock`.  Live 2026-11-10 01:32–01:39
+(Richard: "vyzkoušej to sám"): the installed instance restarted onto the
+socket — sdr-for-linux log `tci: client 0 connected (unix ftx-for-linux[pid])`,
+no TCP connection to 40001 from FTX, decodes on 3.573 FT8; a second, headless
+instance of the installed binary on the same socket keyed Tune for 4.7 s
+(80 m, the band's Drive was 0 W, so no RF): `KEY MOX … PA=ON ANT1 drive=0/255`,
+fwd 0.00 W, the tone at the exciter −4…−1 dBFS, 0 rf-muted slots, clean UNKEY.
+Not done: switching the server's TCP listener off (a switch in sdr-for-linux's
+Preferences › TCI — no remote way, and restarting Richard's radio is off
+limits); the evidence instead is that FTX holds no TCP connection.  The
+Preferences row was not looked at headless.
