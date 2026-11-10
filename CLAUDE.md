@@ -738,4 +738,13 @@ build (installed to ~/.local, live instance restarted 20:38 with Richard's
 then held 18 spots heard after the restart.  Not verified live: UDP against
 the real collector (Richard runs TCP).  `/tmp/ftx-live/restart.sh` copies
 the environment with `cp -f` (the copy of /proc/PID/environ is mode 0400).
-Issue #1 closed 2026-11-10 with Richard's "ano"; no open issues.
+Issue #1 closed 2026-11-10 with Richard's "ano".
+Richard on a 0.2.0: "další verzi bych zatím nevydával… máme tam ještě dost
+nedodělků" — no release is offered until he asks.  He dictated the loose ends
+and they are issues now (2026-11-10): #3 double-click on a station enables TX,
+#4 the TX period (even / odd) for CQ, #5 a waterfall span of its own (it
+follows the decoder's upper limit; his config has nfb=3000, hence "cut off at
+3 kHz"), #6 a limit for the repeats of a message inside a QSO, #7 a limit for
+the number of CQ calls (both set in Preferences), #8 hold TX while the called
+station works someone else.  The dictation notes with the open questions are
+in `dev/notes/nedodelky.md` (local).
