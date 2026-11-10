@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "app/rx_engine.h"
+#include "app/tci_client.h"
 
 static volatile sig_atomic_t stop_flag;
 static void on_sigint(int s) { (void)s; stop_flag = 1; }
@@ -56,8 +57,10 @@ static void usage(void)
 {
   fprintf(stderr,
           "ftx-rx — live FT8/FT4 decoding from a TCI radio (RX only)\n"
-          "usage: ftx-rx [-H host] [-p port] [-5] [-d depth] [-c MYCALL] [-x HISCALL] [-G GRID] [-f hz] [-Q n] [-q]\n"
-          "  -H host    TCI server (default 127.0.0.1)   -p port   default 40001\n"
+          "usage: ftx-rx [-H server] [-p port] [-5] [-d depth] [-c MYCALL] [-x HISCALL] [-G GRID] [-f hz] [-Q n] [-q]\n"
+          "  -H server  TCI server: host, ws://host:port or unix:/path; default = the local radio's\n"
+          "             socket ($XDG_RUNTIME_DIR/sdr-for-linux/tci.sock), then ws://127.0.0.1:40001\n"
+          "  -p port    TCP port for a bare host (default 40001)\n"
           "  -5         FT4 (7.5 s periods)              -d        depth 1..3 (default 3)\n"
           "  -c/-x/-G   my call, DX call, DX grid (a-priori decoding)\n"
           "  -f hz      Rx frequency in the passband (default 1500)   -Q n  QSO progress 0..5\n"
@@ -67,8 +70,8 @@ static void usage(void)
 
 int main(int argc, char **argv)
 {
-  const char *host = "127.0.0.1";
-  int port = 40001;
+  const char *host = NULL;
+  int port = 0;
   gboolean ft4 = FALSE;
   struct rx r;
   memset(&r, 0, sizeof r);
@@ -104,13 +107,15 @@ int main(int argc, char **argv)
   ftx_rx_engine_set_period_cb(e, on_period, &r);
   ftx_rx_engine_set_closed_cb(e, on_closed, &r);
   GError *err = NULL;
-  if (!ftx_rx_engine_connect(e, host, (guint16)port, &err)) {
+  char *server = ftx_tci_server_from_host_port(host, port);
+  if (!ftx_rx_engine_connect(e, server, &err)) {
     fprintf(stderr, "ftx-rx: %s\n", err->message);
     g_error_free(err);
     return 1;
   }
-  fprintf(stderr, "ftx-rx: connected to ws://%s:%d — device \"%s\", protocol \"%s\", dial %.0f Hz, mode %s; %s depth %d\n",
-          host, port, ftx_rx_engine_device(e), ftx_rx_engine_protocol(e), ftx_rx_engine_vfo_hz(e),
+  g_free(server);
+  fprintf(stderr, "ftx-rx: connected to %s — device \"%s\", protocol \"%s\", dial %.0f Hz, mode %s; %s depth %d\n",
+          ftx_rx_engine_endpoint(e), ftx_rx_engine_device(e), ftx_rx_engine_protocol(e), ftx_rx_engine_vfo_hz(e),
           ftx_rx_engine_mode(e), ft4 ? "FT4" : "FT8", p8.ndepth);
   signal(SIGINT, on_sigint);
   signal(SIGTERM, on_sigint);

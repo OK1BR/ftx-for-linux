@@ -80,8 +80,10 @@ static void usage(void)
 {
   fprintf(stderr,
           "ftx-record — record UTC-aligned FT8/FT4 periods from a TCI radio as WAV files\n"
-          "usage: ftx-record [-H host] [-p port] [-5] [-g gain] [-n count] [-q] directory\n"
-          "  -H host    TCI server (default 127.0.0.1)      -p port    default 40001\n"
+          "usage: ftx-record [-H server] [-p port] [-5] [-g gain] [-n count] [-q] directory\n"
+          "  -H server  TCI server: host, ws://host:port or unix:/path; default = the local radio's\n"
+          "             socket ($XDG_RUNTIME_DIR/sdr-for-linux/tci.sock), then ws://127.0.0.1:40001\n"
+          "  -p port    TCP port for a bare host (default 40001)\n"
           "  -5         7.5 s FT4 periods (default 15 s FT8)\n"
           "  -g gain    float → int16 factor (default 32767 = full scale)\n"
           "  -n count   stop after count files              -q         quiet\n"
@@ -91,8 +93,8 @@ static void usage(void)
 
 int main(int argc, char **argv)
 {
-  const char *host = "127.0.0.1";
-  int port = 40001, period_ms = 15000, nmax = 0;
+  const char *host = NULL;
+  int port = 0, period_ms = 15000, nmax = 0;
   float gain = 32767.0f;
   gboolean quiet = FALSE;
   int i = 1;
@@ -114,7 +116,9 @@ int main(int argc, char **argv)
   if (g_mkdir_with_parents(dir, 0755) != 0) { perror(dir); return 1; }
 
   struct rec r = { dir, nmax, 0, quiet, NULL, 0, FALSE };
-  r.tci = ftx_tci_client_new(host, (guint16)port);
+  char *server = ftx_tci_server_from_host_port(host, port);
+  r.tci = ftx_tci_client_new(server);
+  g_free(server);
   FtxPeriod *per = ftx_period_new(period_ms, gain, on_period, &r);
   ftx_tci_client_set_audio_cb(r.tci, on_audio, per);
   ftx_tci_client_set_closed_cb(r.tci, on_closed, &r);
@@ -124,8 +128,8 @@ int main(int argc, char **argv)
     g_error_free(err);
     return 1;
   }
-  fprintf(stderr, "ftx-record: connected to ws://%s:%d — device \"%s\", protocol \"%s\", dial %.0f Hz, mode %s; "
-          "%d ms periods → %s\n", host, port, ftx_tci_client_device(r.tci), ftx_tci_client_protocol(r.tci),
+  fprintf(stderr, "ftx-record: connected to %s — device \"%s\", protocol \"%s\", dial %.0f Hz, mode %s; "
+          "%d ms periods → %s\n", ftx_tci_client_endpoint(r.tci), ftx_tci_client_device(r.tci), ftx_tci_client_protocol(r.tci),
           ftx_tci_client_vfo_hz(r.tci), ftx_tci_client_mode(r.tci), period_ms, dir);
   signal(SIGINT, on_sigint);
   signal(SIGTERM, on_sigint);

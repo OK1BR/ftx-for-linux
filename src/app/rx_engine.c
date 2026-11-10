@@ -452,13 +452,13 @@ void ftx_rx_engine_set_rows_per_second(FtxRxEngine *e, int rps)
   g_atomic_int_set(&e->rps, rps);
 }
 
-gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *host, guint16 port, GError **error)
+gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *server, GError **error)
 {
   if (e->connected) {
     g_set_error(error, FTX_RX_ERROR, 1, "already connected");
     return FALSE;
   }
-  e->tci = ftx_tci_client_new(host, port);
+  e->tci = ftx_tci_client_new(server);
   g_mutex_lock(&e->audio_lock);
   e->period = period_new_for(e, e->ft4);
   spectrum_reset(e);
@@ -506,6 +506,7 @@ struct _FtxTciClient *ftx_rx_engine_tci(FtxRxEngine *e) { return e->connected ? 
 double      ftx_rx_engine_vfo_hz(FtxRxEngine *e)    { return e->tci ? ftx_tci_client_vfo_hz(e->tci) : 0.0; }
 gboolean    ftx_rx_engine_tx(FtxRxEngine *e)        { return e->tci ? ftx_tci_client_tx(e->tci) : FALSE; }
 const char *ftx_rx_engine_device(FtxRxEngine *e)    { return e->tci ? ftx_tci_client_device(e->tci) : ""; }
+const char *ftx_rx_engine_endpoint(FtxRxEngine *e)  { return e->tci ? ftx_tci_client_endpoint(e->tci) : ""; }
 const char *ftx_rx_engine_protocol(FtxRxEngine *e)  { return e->tci ? ftx_tci_client_protocol(e->tci) : ""; }
 const char *ftx_rx_engine_mode(FtxRxEngine *e)      { return e->tci ? ftx_tci_client_mode(e->tci) : ""; }
 int         ftx_rx_engine_drive(FtxRxEngine *e)     { return e->tci ? ftx_tci_client_drive(e->tci) : 0; }

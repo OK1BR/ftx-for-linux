@@ -21,8 +21,8 @@ typedef struct {
   gboolean rr73;            /* Tx4 = RR73 (else RRR)                        */
   int      watchdog_min;    /* TX watchdog, minutes                         */
   /* [radio] */
-  char     tci_host[64];
-  int      tci_port;
+  char     tci_server[160]; /* "unix:/path", "ws://host:port" or "" = the local radio: sdr-for-linux's
+                               socket, then ws://127.0.0.1:40001 (ftx_tci_client_new)                 */
   gboolean connect_at_start;
   int      tx_level_pct;    /* TX audio level, % of full scale               */
   gboolean check_mode;      /* refuse to key unless the radio is in DIGU/USB */

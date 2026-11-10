@@ -19,9 +19,21 @@
 #define STREAM_FMT_INT16   0
 #define STREAM_FMT_FLOAT   3
 
-struct _FtxTciClient {
-  char    *host;
+#define TCI_DEFAULT_PORT 40001
+#define TCI_DEFAULT_TCP  "ws://127.0.0.1:40001"
+
+struct endpoint {
+  gboolean unix_sock;
+  char     path[108];         /* sun_path */
+  char     host[128];
   guint16  port;
+};
+
+struct _FtxTciClient {
+  GPtrArray *order;           /* addresses to try, in order (char*)          */
+  char      *bad;             /* an address that did not parse, or NULL      */
+  char      *endpoint;        /* the address in use / last tried             */
+  char      *dial;            /* what lws dials: "+/path" or the host        */
 
   FtxTciAudioCb  audio_cb;  gpointer audio_cb_data;
   FtxTciVfoCb    vfo_cb;    gpointer vfo_cb_data;
@@ -335,11 +347,86 @@ static gpointer service_thread(gpointer data)
   return NULL;
 }
 
-FtxTciClient *ftx_tci_client_new(const char *host, guint16 port)
+/* "unix:/path", "ws://host[:port]" or bare "host[:port]" (log-for-linux's
+ * logfl_tci_endpoint_parse: no TLS on a TCI link, no IPv6 literals) */
+static gboolean endpoint_parse(const char *s, struct endpoint *out)
+{
+  if (!s) return FALSE;
+  char *t = g_strstrip(g_strdup(s));
+  struct endpoint ep;
+  memset(&ep, 0, sizeof ep);
+  gboolean ok = FALSE;
+  if (g_str_has_prefix(t, "unix:")) {
+    const char *p = t + 5;
+    if (p[0] == '/' && strlen(p) < sizeof ep.path) {
+      ep.unix_sock = TRUE;
+      g_strlcpy(ep.path, p, sizeof ep.path);
+      ok = TRUE;
+    }
+  } else if (strstr(t, "://") == NULL || g_str_has_prefix(t, "ws://")) {
+    char *hp = g_strdup(g_str_has_prefix(t, "ws://") ? t + 5 : t);
+    size_t n = strlen(hp);
+    if (n && hp[n - 1] == '/') hp[n - 1] = '\0';
+    guint64 port = TCI_DEFAULT_PORT;
+    gboolean port_ok = TRUE;
+    char *colon = strrchr(hp, ':');
+    if (colon) {
+      *colon = '\0';
+      port_ok = colon[1] && g_ascii_string_to_unsigned(colon + 1, 10, 1, 65535, &port, NULL);
+    }
+    if (port_ok && hp[0] && strpbrk(hp, "/:@ \t") == NULL && strlen(hp) < sizeof ep.host) {
+      g_strlcpy(ep.host, hp, sizeof ep.host);
+      ep.port = (guint16)port;
+      ok = TRUE;
+    }
+    g_free(hp);
+  }
+  g_free(t);
+  if (ok) *out = ep;
+  return ok;
+}
+
+static char *endpoint_to_string(const struct endpoint *ep)
+{
+  return ep->unix_sock ? g_strdup_printf("unix:%s", ep->path) : g_strdup_printf("ws://%s:%u", ep->host, ep->port);
+}
+
+gboolean ftx_tci_server_valid(const char *server)
+{
+  while (server && g_ascii_isspace(*server)) server++;
+  if (!server || !*server) return TRUE;
+  struct endpoint ep;
+  return endpoint_parse(server, &ep);
+}
+
+char *ftx_tci_server_from_host_port(const char *host, int port)
+{
+  while (host && g_ascii_isspace(*host)) host++;
+  const gboolean def_host = !host || !*host || strcmp(host, "127.0.0.1") == 0;
+  const gboolean def_port = port <= 0 || port == TCI_DEFAULT_PORT;
+  if (def_host && def_port) return NULL;
+  if (host && (g_str_has_prefix(host, "unix:") || strstr(host, "://"))) return g_strdup(host);
+  return g_strdup_printf("ws://%s:%d", def_host ? "127.0.0.1" : host, def_port ? TCI_DEFAULT_PORT : port);
+}
+
+FtxTciClient *ftx_tci_client_new(const char *server)
 {
   FtxTciClient *c = g_new0(FtxTciClient, 1);
-  c->host = g_strdup(host ? host : "127.0.0.1");
-  c->port = port ? port : 40001;
+  c->order = g_ptr_array_new_with_free_func(g_free);
+  while (server && g_ascii_isspace(*server)) server++;
+  if (server && *server) {
+    struct endpoint ep;
+    if (endpoint_parse(server, &ep)) g_ptr_array_add(c->order, endpoint_to_string(&ep));
+    else c->bad = g_strdup(server);
+  } else {
+    /* the local radio's socket (sdr-for-linux's own default path; one moved
+     * by its preference is typed in as unix:/path), then its TCP port */
+    char *sock = g_build_filename(g_get_user_runtime_dir(), "sdr-for-linux", "tci.sock", NULL);
+    g_ptr_array_add(c->order, g_strdup_printf("unix:%s", sock));
+    g_ptr_array_add(c->order, g_strdup(TCI_DEFAULT_TCP));
+    g_free(sock);
+  }
+  if (c->order->len) c->endpoint = g_strdup(g_ptr_array_index(c->order, 0));
   g_mutex_init(&c->lock);
   g_cond_init(&c->cond);
   g_queue_init(&c->out);
@@ -359,7 +446,10 @@ void ftx_tci_client_free(FtxTciClient *c)
   g_free(c->mono);
   g_mutex_clear(&c->lock);
   g_cond_clear(&c->cond);
-  g_free(c->host);
+  g_ptr_array_free(c->order, TRUE);
+  g_free(c->bad);
+  g_free(c->endpoint);
+  g_free(c->dial);
   g_free(c);
 }
 
@@ -369,17 +459,18 @@ void ftx_tci_client_set_mode_cb(FtxTciClient *c, FtxTciModeCb cb, gpointer u) { 
 void ftx_tci_client_set_tx_cb(FtxTciClient *c, FtxTciTxCb cb, gpointer u) { c->tx_cb = cb; c->tx_cb_data = u; }
 void ftx_tci_client_set_closed_cb(FtxTciClient *c, FtxTciClosedCb cb, gpointer u) { c->closed_cb = cb; c->closed_cb_data = u; }
 
-gboolean ftx_tci_client_start(FtxTciClient *c, guint rate, GError **error)
+/* Dial one address and wait for the server's ready;.  On failure the
+ * context is torn down again and *why says what happened. */
+static gboolean dial(FtxTciClient *c, const char *addr, char **why)
 {
-  if (c->thread) {
-    g_set_error(error, FTX_TCI_ERROR, 1, "TCI client already started");
+  struct endpoint ep;
+  if (!endpoint_parse(addr, &ep)) { *why = g_strdup_printf("%s: not an address", addr); return FALSE; }
+  g_free(c->endpoint);
+  c->endpoint = g_strdup(addr);
+  if (ep.unix_sock && !g_file_test(ep.path, G_FILE_TEST_EXISTS)) {
+    *why = g_strdup_printf("%s: no such socket", addr);
     return FALSE;
   }
-  if (rate != 8000 && rate != 12000 && rate != 24000 && rate != 48000) {
-    g_set_error(error, FTX_TCI_ERROR, 2, "invalid audio rate %u (8/12/24/48 kHz)", rate);
-    return FALSE;
-  }
-  lws_set_log_level(LLL_ERR, NULL);
   struct lws_context_creation_info info;
   memset(&info, 0, sizeof info);
   info.port = CONTEXT_PORT_NO_LISTEN;
@@ -388,20 +479,33 @@ gboolean ftx_tci_client_start(FtxTciClient *c, guint rate, GError **error)
   info.uid = (uid_t)-1;
   info.user = c;
   c->ctx = lws_create_context(&info);
-  if (!c->ctx) {
-    g_set_error(error, FTX_TCI_ERROR, 3, "lws_create_context failed");
-    return FALSE;
-  }
+  if (!c->ctx) { *why = g_strdup("lws_create_context failed"); return FALSE; }
   struct lws_client_connect_info ci;
   memset(&ci, 0, sizeof ci);
   ci.context = c->ctx;
-  ci.address = c->host;
-  ci.port = c->port;
   ci.path = "/";
-  ci.host = c->host;
-  ci.origin = c->host;
   ci.protocol = "tci";
-  lws_client_connect_via_info(&ci);
+  g_free(c->dial);
+  if (ep.unix_sock) {
+    /* libwebsockets dials a Unix socket when the ADDRESS starts with '+'
+     * (sdr-for-linux docs/TCI-SCOPE.md, Transports); the handshake still
+     * needs a host name.  The client owns the string for the dial. */
+    c->dial = g_strdup_printf("+%s", ep.path);
+    ci.address = c->dial;
+    ci.port = 0;
+    ci.host = ci.origin = "localhost";
+  } else {
+    c->dial = g_strdup(ep.host);
+    ci.address = ci.host = ci.origin = c->dial;
+    ci.port = ep.port;
+  }
+  /* a NULL back from the dial is a failure lws need not report again
+   * through the callback */
+  if (!lws_client_connect_via_info(&ci)) {
+    g_mutex_lock(&c->lock);
+    c->failed = TRUE;
+    g_mutex_unlock(&c->lock);
+  }
 
   g_atomic_int_set(&c->run, 1);
   c->thread = g_thread_new("ftx-tci", service_thread, c);
@@ -413,11 +517,41 @@ gboolean ftx_tci_client_start(FtxTciClient *c, guint rate, GError **error)
   gboolean ready = c->ready, failed = c->failed;
   g_mutex_unlock(&c->lock);
   if (!ready) {
-    g_set_error(error, FTX_TCI_ERROR, 4, failed ? "connection to ws://%s:%u refused" : "handshake timeout against ws://%s:%u (no ready;)",
-                c->host, c->port);
+    *why = g_strdup_printf(failed ? "%s: connection refused" : "%s: handshake timeout (no ready;)", addr);
     ftx_tci_client_stop(c);
     return FALSE;
   }
+  return TRUE;
+}
+
+gboolean ftx_tci_client_start(FtxTciClient *c, guint rate, GError **error)
+{
+  if (c->thread) {
+    g_set_error(error, FTX_TCI_ERROR, 1, "TCI client already started");
+    return FALSE;
+  }
+  if (rate != 8000 && rate != 12000 && rate != 24000 && rate != 48000) {
+    g_set_error(error, FTX_TCI_ERROR, 2, "invalid audio rate %u (8/12/24/48 kHz)", rate);
+    return FALSE;
+  }
+  if (c->bad) {
+    g_set_error(error, FTX_TCI_ERROR, 5, "TCI server \"%s\" is not unix:/path or ws://host:port", c->bad);
+    return FALSE;
+  }
+  lws_set_log_level(LLL_ERR, NULL);
+  GString *whys = g_string_new(NULL);
+  gboolean up = FALSE;
+  for (guint i = 0; i < c->order->len && !up; i++) {
+    char *why = NULL;
+    up = dial(c, g_ptr_array_index(c->order, i), &why);
+    if (!up) { g_string_append_printf(whys, "%s%s", whys->len ? "; " : "", why); g_free(why); }
+  }
+  if (!up) {
+    g_set_error(error, FTX_TCI_ERROR, 4, "%s", whys->str);
+    g_string_free(whys, TRUE);
+    return FALSE;
+  }
+  g_string_free(whys, TRUE);
   /* one command per text frame; the server echoes each */
   g_mutex_lock(&c->lock);
   c->rate_req = rate;
@@ -464,6 +598,7 @@ double ftx_tci_client_vfo_hz(FtxTciClient *c) { g_mutex_lock(&c->lock); double v
 int    ftx_tci_client_drive(FtxTciClient *c) { g_mutex_lock(&c->lock); int v = c->drive; g_mutex_unlock(&c->lock); return v; }
 gboolean ftx_tci_client_tx(FtxTciClient *c) { g_mutex_lock(&c->lock); gboolean v = c->trx || c->tune; g_mutex_unlock(&c->lock); return v; }
 gboolean ftx_tci_client_trx(FtxTciClient *c) { g_mutex_lock(&c->lock); gboolean v = c->trx; g_mutex_unlock(&c->lock); return v; }
+const char *ftx_tci_client_endpoint(FtxTciClient *c) { return c->endpoint ? c->endpoint : (c->bad ? c->bad : ""); }
 const char *ftx_tci_client_device(FtxTciClient *c) { return c->device; }
 const char *ftx_tci_client_protocol(FtxTciClient *c) { return c->protocol; }
 const char *ftx_tci_client_mode(FtxTciClient *c) { return c->mode; }

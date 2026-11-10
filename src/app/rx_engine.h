@@ -90,7 +90,9 @@ void     ftx_rx_engine_set_rows_per_second(FtxRxEngine *e, int rps);
 
 /* Connect to the TCI server and start the audio stream; blocks for the
  * handshake (up to a few seconds) — call from a thread in a GUI. */
-gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *host, guint16 port, GError **error);
+/* server: as ftx_tci_client_new ("unix:/path", "ws://host:port", NULL = the
+ * local radio's socket, then its TCP port). */
+gboolean ftx_rx_engine_connect(FtxRxEngine *e, const char *server, GError **error);
 void     ftx_rx_engine_disconnect(FtxRxEngine *e);
 gboolean ftx_rx_engine_connected(FtxRxEngine *e);
 
@@ -99,6 +101,7 @@ struct _FtxTciClient *ftx_rx_engine_tci(FtxRxEngine *e);
 double      ftx_rx_engine_vfo_hz(FtxRxEngine *e);
 gboolean    ftx_rx_engine_tx(FtxRxEngine *e);
 const char *ftx_rx_engine_device(FtxRxEngine *e);
+const char *ftx_rx_engine_endpoint(FtxRxEngine *e);   /* the TCI address in use, "" when not connected */
 const char *ftx_rx_engine_protocol(FtxRxEngine *e);
 const char *ftx_rx_engine_mode(FtxRxEngine *e);
 int         ftx_rx_engine_drive(FtxRxEngine *e);      /* the radio's drive (W), 0 = unknown */

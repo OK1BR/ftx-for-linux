@@ -623,3 +623,31 @@ Spain (worked on 20 m FT8) untagged, France/Hungary/Balearic Is./Crete/Germany
 tagged in the period they were decoded; after Log QSO for F5RXL the next period
 showed F5RXL as B4 and the other French stations untagged.  With Richard's
 three digital QSOs nearly every station is tagged for now.
+
+2026-11-10 (night): tickets are GitHub issues in this repo (Richard: "založ na to
+ticket"): #1 PSK Reporter spotting (open), #2 TCI over the Unix socket.
+**#2 TCI client over sdr-for-linux's Unix socket, TCP as the fallback** (mirror of
+log-for-linux#32 against sdr-for-linux#46): `ftx_tci_client_new(server)` takes
+`unix:/path`, `ws://host[:port]` or a bare `host[:port]`; NULL/"" = the default
+order `$XDG_RUNTIME_DIR/sdr-for-linux/tci.sock`, then `ws://127.0.0.1:40001`
+(a missing socket file is skipped without dialling, a refused one falls
+through; the error lists every attempt).  libwebsockets dials a Unix socket
+when `ci.address` starts with `+`.  Settings: `[radio] tci_server` (empty =
+automatic) replaces `tci_host`/`tci_port` — an old config with the default
+pair migrates to empty, any other pair to `ws://host:port`; the old keys are
+dropped on the next save.  Preferences › Radio has one address row; the status
+bar says "socket" or host:port, About › Debug info the address in use and the
+configured one; `ftx-rx`/`ftx-record -H` take the same forms (`-p` for a bare
+host).  `dev/tools/tci_mock_server.c` listens on `unix:/path` too (lws makes
+the socket 0660 and `unix_socket_perms` is "user:group", not a mode — chmod
+0600 after the context is up).  Verified against the mock: ftx-rx over the
+socket = the TCP run line for line and ftx-decode's 21 messages; default order
+with XDG_RUNTIME_DIR pointed at the mock's socket; the GUI on Richard's
+migrated config found the socket ("TCI ftx-mock socket DIGU"), Call CQ over
+it was captured and decodes as "CQ OK1BR JO70" at 710 Hz, DT 0.0, first block
+0.352 s into the period; a stale socket file and a missing one fall back to
+TCP; `wss://x` is refused as an address.  Against the real radio (receive
+only, seconds): the default order connects to
+`unix:/run/user/1000/sdr-for-linux/tci.sock`.  Not yet done: the live GUI on
+the socket with the server's TCP listener off and one transmission (Richard's
+radio), and the Preferences row was not looked at headless.

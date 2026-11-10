@@ -1107,14 +1107,17 @@ static void on_tx(gboolean tx, gpointer user)
 
 static void set_tci_status(FtxWindow *win)
 {
-  char buf[128];
+  char buf[256];
   if (win->connecting) {
-    snprintf(buf, sizeof buf, "● TCI connecting to %s:%d…", win->s->tci_host, win->s->tci_port);
+    snprintf(buf, sizeof buf, "● TCI connecting to %s…", win->s->tci_server[0] ? win->s->tci_server : "the local radio");
     ftx_status_bar_set_tci(win->sb, buf, FTX_STATUS_DIM);
   } else if (win->connected) {
     const char *dev = ftx_rx_engine_device(win->eng);
     char *mode = g_ascii_strup(ftx_rx_engine_mode(win->eng), -1);
-    snprintf(buf, sizeof buf, "● TCI %s %s  %s", dev[0] ? dev : "server", win->s->tci_host, mode);
+    /* the transport in use: "socket" for the Unix socket, else the host:port */
+    const char *ep = ftx_rx_engine_endpoint(win->eng);
+    const char *where = g_str_has_prefix(ep, "unix:") ? "socket" : g_str_has_prefix(ep, "ws://") ? ep + 5 : ep;
+    snprintf(buf, sizeof buf, "● TCI %s %s  %s", dev[0] ? dev : "server", where, mode);
     g_free(mode);
     ftx_status_bar_set_tci(win->sb, buf, FTX_STATUS_OK);
   } else {
@@ -1149,7 +1152,7 @@ static void on_closed(gpointer user)
 
 /* ---- connecting ------------------------------------------------------------ */
 
-struct connect_args { char host[64]; guint16 port; };
+struct connect_args { char server[160]; };
 
 static void connect_thread(GTask *task, gpointer src, gpointer data, GCancellable *c)
 {
@@ -1157,7 +1160,7 @@ static void connect_thread(GTask *task, gpointer src, gpointer data, GCancellabl
   FtxWindow *win = src;
   struct connect_args *a = data;
   GError *err = NULL;
-  if (ftx_rx_engine_connect(win->eng, a->host, a->port, &err)) g_task_return_boolean(task, TRUE);
+  if (ftx_rx_engine_connect(win->eng, a->server[0] ? a->server : NULL, &err)) g_task_return_boolean(task, TRUE);
   else g_task_return_error(task, err);
 }
 
@@ -1191,8 +1194,7 @@ static void do_connect(FtxWindow *win)
   win->connecting = TRUE;
   set_tci_status(win);
   struct connect_args *a = g_new0(struct connect_args, 1);
-  g_strlcpy(a->host, win->s->tci_host, sizeof a->host);
-  a->port = (guint16)win->s->tci_port;
+  g_strlcpy(a->server, win->s->tci_server, sizeof a->server);
   GTask *task = g_task_new(win, NULL, connect_done, NULL);
   g_task_set_task_data(task, a, g_free);
   g_task_run_in_thread(task, connect_thread);
@@ -1392,7 +1394,7 @@ char *ftx_window_debug_info(FtxWindow *win)
     "FTX for Linux %s\n"
     "GTK %u.%u.%u, libadwaita %u.%u.%u, GSK_RENDERER=%s\n"
     "Decoders: ported from WSJT-X v3.0.2 (git ccdfaf3); %s\n"
-    "TCI: %s:%d — %s%s%s%s\n"
+    "TCI: %s (configured: %s) — %s%s%s%s\n"
     "Mode %s, Rx %d Hz, Tx %d Hz, depth %d, AP %s, range %d–%d Hz\n"
     "Config: %s\n"
     "Data: %s\n"
@@ -1402,7 +1404,8 @@ char *ftx_window_debug_info(FtxWindow *win)
     adw_get_major_version(), adw_get_minor_version(), adw_get_micro_version(),
     g_getenv("GSK_RENDERER") ? g_getenv("GSK_RENDERER") : "default",
     fftw,
-    win->s->tci_host, win->s->tci_port,
+    win->connected ? ftx_rx_engine_endpoint(win->eng) : "-",
+    win->s->tci_server[0] ? win->s->tci_server : "automatic: sdr-for-linux socket, then ws://127.0.0.1:40001",
     win->connected ? "connected, device \"" : "not connected",
     win->connected ? ftx_rx_engine_device(win->eng) : "",
     win->connected ? "\", protocol " : "",

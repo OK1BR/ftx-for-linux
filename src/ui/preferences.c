@@ -228,9 +228,9 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   sw(c, g, "RR73 instead of RRR", "Tx4 ends the QSO with RR73", &s->rr73);
 
   p = page(pd, "Radio", "radio", "network-wireless-symbolic");
-  g = group(p, "TCI server", "sdr-for-linux or icom-for-linux.  RX audio (12 kHz) comes over this connection; reconnect to apply a new host or port.");
-  entry(c, g, "Host", s->tci_host, sizeof s->tci_host);
-  spin(c, g, "Port", NULL, 1, 65535, 1, 0, &s->tci_port, NULL);
+  g = group(p, "TCI server", "sdr-for-linux or icom-for-linux.  Empty = the radio on this machine: its Unix socket first, then ws://127.0.0.1:40001.  "
+                             "Otherwise unix:/path or ws://host:port.  Reconnect to apply.");
+  entry(c, g, "Address (empty = local radio)", s->tci_server, sizeof s->tci_server);
   sw(c, g, "Connect at start", NULL, &s->connect_at_start);
   g = group(p, "Transmit", "FTX keys the radio with trx over TCI and streams the FT8/FT4 audio (48 kHz) as the TX source.");
   spin(c, g, "TX audio level", "% of full scale; the radio's drive sets the power", 10, 100, 5, 0, &s->tx_level_pct, NULL);

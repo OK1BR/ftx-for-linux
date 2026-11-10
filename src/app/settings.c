@@ -17,7 +17,7 @@ static const struct key {
   K("station", "call", T_STR, call), K("station", "grid", T_STR, grid),
   K("station", "skip_tx1", T_BOOL, skip_tx1), K("station", "rr73", T_BOOL, rr73),
   K("station", "watchdog_min", T_INT, watchdog_min),
-  K("radio", "tci_host", T_STR, tci_host), K("radio", "tci_port", T_INT, tci_port),
+  K("radio", "tci_server", T_STR, tci_server),
   K("radio", "connect_at_start", T_BOOL, connect_at_start),
   K("radio", "tx_level_pct", T_INT, tx_level_pct), K("radio", "check_mode", T_BOOL, check_mode),
 #define KF(i, n) K("frequencies", "ft8_" n, T_INT, freq_ft8[i]), K("frequencies", "ft4_" n, T_INT, freq_ft4[i])
@@ -52,7 +52,7 @@ void ftx_settings_defaults(FtxSettings *s)
 {
   memset(s, 0, sizeof *s);
   s->skip_tx1 = FALSE; s->rr73 = TRUE; s->watchdog_min = 6;
-  g_strlcpy(s->tci_host, "127.0.0.1", sizeof s->tci_host); s->tci_port = 40001; s->connect_at_start = TRUE;
+  s->tci_server[0] = '\0'; s->connect_at_start = TRUE;
   s->tx_level_pct = 90; s->check_mode = TRUE;
   for (int b = 0; b < FTX_NBANDS; b++) { s->freq_ft8[b] = (int)ftx_bands[b].ft8_hz; s->freq_ft4[b] = (int)ftx_bands[b].ft4_hz; }
   s->depth = 3; s->ap = TRUE; s->nfa = 200; s->nfb = 4000; s->clock_warn_dt = 0.5; s->show_dt_health = TRUE;
@@ -108,6 +108,18 @@ gboolean ftx_settings_load(FtxSettings *s)
     }
     }
   }
+  /* configs up to 0.1.0 carry [radio] tci_host / tci_port: the default pair
+   * now means "socket first, then TCP" (an empty tci_server), anything else
+   * is that TCP address */
+  if (!g_key_file_has_key(kf, "radio", "tci_server", NULL) && g_key_file_has_key(kf, "radio", "tci_host", NULL)) {
+    char *h = g_key_file_get_string(kf, "radio", "tci_host", NULL);
+    int port = g_key_file_get_integer(kf, "radio", "tci_port", NULL);
+    if (port < 1 || port > 65535) port = 40001;
+    if (h) g_strstrip(h);
+    if (h && h[0] && (strcmp(h, "127.0.0.1") != 0 || port != 40001))
+      g_snprintf(s->tci_server, sizeof s->tci_server, "ws://%s:%d", h, port);
+    g_free(h);
+  }
   g_key_file_free(kf);
   return TRUE;
 }
@@ -126,6 +138,8 @@ gboolean ftx_settings_save(const FtxSettings *s)
     case T_STR:    g_key_file_set_string(kf, k->group, k->name, src); break;
     }
   }
+  g_key_file_remove_key(kf, "radio", "tci_host", NULL);    /* replaced by tci_server */
+  g_key_file_remove_key(kf, "radio", "tci_port", NULL);
   char *dir = g_path_get_dirname(ftx_settings_path());
   g_mkdir_with_parents(dir, 0700);
   g_free(dir);
