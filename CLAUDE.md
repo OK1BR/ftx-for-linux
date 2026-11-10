@@ -766,3 +766,11 @@ well-formed call when the transmitted text matters.  Seen in the same run,
 not looked into: with Follow new decodes the newest line of a block was
 below the fold in two of five screenshots.  `pkill -f` on a string that is
 also in the calling shell's command line kills that shell (again).
+#3 live the same evening (build 80187c5 installed, live instance restarted
+with Richard's "muzes"): ALL.TXT shows "HG0NPJ OK1BR JO70" going out at
+21:29:30 UTC, the period after his double-click on a CQ decoded five minutes
+earlier; Richard: "mělo by to fungovat".  The log had one warning at that
+key-up, "tci: Stream block truncated (2048 samples), dropped": sdr-for-linux
+sends TX_CHRONO frames (type 3, a header alone whose length is the samples
+it wants; `tci_server_tx_chrono`) to the client that holds TX, and
+`handle_block` checked the length before the type.  Fixed: the type first.

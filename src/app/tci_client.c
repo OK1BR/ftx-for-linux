@@ -206,6 +206,9 @@ static void handle_block(FtxTciClient *c)
   }
   guint32 h[16];
   memcpy(h, c->bin->data, sizeof h);
+  /* IQ and the other types are not ours — nor TX_CHRONO, the server's pacing
+   * request while we hold TX: a header alone, its length the samples wanted */
+  if (h[6] != STREAM_TYPE_RXAUD) return;
   const guint32 scalars = h[5];
   const gsize ssize = h[2] == STREAM_FMT_INT16 ? 2 : 4;
   const gsize need = STREAM_HDR_BYTES + (gsize)scalars * ssize;
@@ -221,7 +224,6 @@ static void handle_block(FtxTciClient *c)
     if (!c->warned_rx) { c->warned_rx = TRUE; g_message("tci: Stream blocks for receiver %u ignored", h[0]); }
     return;
   }
-  if (h[6] != STREAM_TYPE_RXAUD) return;              /* IQ or other types: not ours */
   if (h[2] != STREAM_FMT_FLOAT && h[2] != STREAM_FMT_INT16) {
     if (!c->warned_fmt) { c->warned_fmt = TRUE; g_warning("tci: audio Stream format %u not supported", h[2]); }
     return;
