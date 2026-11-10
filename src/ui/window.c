@@ -652,6 +652,18 @@ static void disable_tx(FtxWindow *win)
   update_card(win);
 }
 
+/* auto_tx_mode (true): Enable TX switched on by the program */
+static void enable_tx(FtxWindow *win)
+{
+  if (win->tx_enabled || !win->connected || win->tuning) return;
+  win->tx_enabled = TRUE;
+  ftx_qso_panel_set_tx_enabled(win->qso, TRUE);
+  win->watchdog_count = 0;
+  win->tx_period_idx = -1;
+  update_card(win);
+  send_status(win);
+}
+
 static void write_all_txt_tx(FtxWindow *win, const char *msg)
 {
   if (!win->s->all_txt) return;
@@ -1022,6 +1034,8 @@ static void process_message(FtxWindow *win, const FtxDecodeRow *d, gboolean doub
   ftx_qso_panel_set_report(win->qso, n);
   gen_messages(win);
   apply_decoder_params(win);
+  /* quick_call ("Double-click on call sets Tx enable"): the call goes out in our next period */
+  if (double_clicked && win->s->dclick_tx) enable_tx(win);
 }
 
 /* ---- engine callbacks (main context) --------------------------------------- */

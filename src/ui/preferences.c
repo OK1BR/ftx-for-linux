@@ -226,6 +226,7 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   g = group(p, "Messages", NULL);
   sw(c, g, "Skip Tx1", "start a QSO with the report (Tx2) instead of the grid (Tx1)", &s->skip_tx1);
   sw(c, g, "RR73 instead of RRR", "Tx4 ends the QSO with RR73", &s->rr73);
+  sw(c, g, "Double-click enables TX", "a double-click on a decode selects the station and starts calling in our next period; off = it only selects", &s->dclick_tx);
 
   p = page(pd, "Radio", "radio", "network-wireless-symbolic");
   g = group(p, "TCI server", "sdr-for-linux or icom-for-linux.  Empty = the radio on this machine: its Unix socket first, then ws://127.0.0.1:40001.  "

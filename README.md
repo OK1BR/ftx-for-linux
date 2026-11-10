@@ -71,7 +71,9 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   period tags, Rx/Tx brackets; click = Rx, right click = Tx), the two decode
   panes as in WSJT-X, the QSO panel (partner, the transmission card, Tx1–Tx6,
   auto-sequencer), the status bar (UTC, period, clock health from the mean
-  DT, TCI link, logger). Double-click a decode to answer it, as in WSJT-X.
+  DT, TCI link, logger). Double-click a decode to answer it: the station is selected and TX
+  enabled (WSJT-X's "Double-click on call sets Tx enable"; a switch in
+  Preferences › Station).
   Log QSO sends the QSO to log-for-linux (WSJT-X UDP, 127.0.0.1:2237 by
   default), automatically once our 73 or RR73 has gone out; the logger's
   worked-before answers mark B4.

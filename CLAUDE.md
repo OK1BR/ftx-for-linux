@@ -748,3 +748,21 @@ follows the decoder's upper limit; his config has nfb=3000, hence "cut off at
 the number of CQ calls (both set in Preferences), #8 hold TX while the called
 station works someone else.  The dictation notes with the open questions are
 in `dev/notes/nedodelky.md` (local).
+
+2026-11-10 (late evening): **#3 a double-click enables TX** (Richard:
+"dvojklikem na stanici nejen zacílit, ale rovnou přejít do tx režimu").
+WSJT-X's quick_call (`if(m_config.quick_call() && m_bDoubleClicked)
+auto_tx_mode(true);` at the end of processMessage): `process_message` ends
+with `enable_tx()` for a double-click — not on its early returns (our own
+call, the final 73 of our QSO, our Tx line).  Setting `[station] dclick_tx`,
+default **on** (WSJT-X: off; Richard wants it), Preferences › Station ›
+Messages › "Double-click enables TX".  Verified headless against the mock:
+on → the double-click selected the station and keyed in the running period
+(our period, 1.5 s late), the next full transmission decodes as "EA2BFM K1JT
+FN20" at DT 0.0; switched off in the dialog → the double-click only selects,
+no keying; switched on again → keys.  Test-call pitfall: "Q1TST" is not a
+standard callsign, so Tx1 went out as the free text "EA3CJ Q1TST J" — use a
+well-formed call when the transmitted text matters.  Seen in the same run,
+not looked into: with Follow new decodes the newest line of a block was
+below the fold in two of five screenshots.  `pkill -f` on a string that is
+also in the calling shell's command line kills that shell (again).

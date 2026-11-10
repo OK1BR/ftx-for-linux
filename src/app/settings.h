@@ -19,6 +19,7 @@ typedef struct {
   char     grid[8];         /* my grid locator (4 or 6 characters)          */
   gboolean skip_tx1;        /* start a QSO with Tx2 (report) instead of Tx1 */
   gboolean rr73;            /* Tx4 = RR73 (else RRR)                        */
+  gboolean dclick_tx;       /* a double-click on a decode also enables TX   */
   int      watchdog_min;    /* TX watchdog, minutes                         */
   /* [radio] */
   char     tci_server[160]; /* "unix:/path", "ws://host:port" or "" = the local radio: sdr-for-linux's
