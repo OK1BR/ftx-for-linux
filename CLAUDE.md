@@ -775,3 +775,18 @@ sends TX_CHRONO frames (type 3, a header alone whose length is the samples
 it wants; `tci_server_tx_chrono`) to the client that holds TX, and
 `handle_block` checked the length before the type.  Fixed: the type first.
 Issue #3 closed with Richard's "ano"; open: #4–#8.
+
+2026-11-10 (night): **#4 the TX period for CQ** (Richard: "možnost zapnout cq
+nejen v even ale i v odd okně").  WSJT-X's "Tx even/1st": a plain button in
+the console's Transmit header, left of `TxN · Hz`, whose label is the state —
+"TX even" / "TX odd" (no toggle look for a theme to recolour); a click
+switches the period.  `set_tx_first()` in window.c keeps `win->tx_first`, the
+button and `[state] tx_first` together (saved, default odd as before);
+processMessage still sets it to the period opposite the partner's, for a
+double-click and for the sequencer alike, and the button follows.  Verified
+headless against the mock: odd → Tx row 215545; switched → 215600; the choice
+survived a restart (tx_first=true, "TX even"); with a call that is not in the
+sample "CQ K1ABC FN20" went out at 215700 after Call CQ was pressed in the
+odd period; a double-click on a decode of 215730 turned the button to
+"TX odd" and keyed at 215745.  Test pitfall: with K1JT as the own call the
+sample's "K1JT HA0DU KN07" makes the sequencer take over a CQ.

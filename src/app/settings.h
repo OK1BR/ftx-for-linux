@@ -61,6 +61,7 @@ typedef struct {
   gboolean ft4;
   int      rx_hz, tx_hz;
   gboolean hold_tx, tx_eq_rx, auto_seq;
+  gboolean tx_first;        /* we transmit in the even period (m_txFirst)   */
   int      report;          /* default report to send                       */
   /* [window] */
   int      win_w, win_h;

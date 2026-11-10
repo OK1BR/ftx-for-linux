@@ -13,6 +13,8 @@ struct _FtxQsoPanel {
   int report_db;
   GtkWidget *call_lab, *info_lab;
   GtkWidget *txgroup, *badge, *card_state, *card_msg, *card_menu;
+  GtkWidget *period;            /* the TX period button; its label is the state */
+  gboolean   tx_first;
   GtkWidget *enable, *halt, *tune, *cq, *auto_sw;
   GtkWidget *tx_row[6], *tx_radio[6], *tx_label[6], *tx_tag[6];
   GtkWidget *tx_hz, *hold, *tx_eq_rx, *log;
@@ -31,6 +33,20 @@ static void changed(FtxQsoPanel *p)
 
 static void on_any_changed(GtkWidget *w, gpointer user) { (void)w; changed(user); }
 static void on_notify(GObject *o, GParamSpec *ps, gpointer user) { (void)o; (void)ps; changed(user); }
+
+static void period_label(FtxQsoPanel *p)
+{
+  gtk_button_set_label(GTK_BUTTON(p->period), p->tx_first ? "TX even" : "TX odd");
+}
+
+static void on_period_clicked(GtkButton *b, gpointer user)
+{
+  (void)b;
+  FtxQsoPanel *p = user;
+  p->tx_first = !p->tx_first;
+  period_label(p);
+  changed(p);
+}
 
 static void on_radio_toggled(GtkCheckButton *b, gpointer user)
 {
@@ -265,8 +281,18 @@ static void ftx_qso_panel_init(FtxQsoPanel *p)
   gtk_widget_set_valign(p->card_menu, GTK_ALIGN_CENTER);
   gtk_widget_set_tooltip_text(p->card_menu, "Next message, Auto sequence, Tx frequency, DX call by hand");
   gtk_menu_button_set_popover(GTK_MENU_BUTTON(p->card_menu), build_popover(p));
+  /* the period we transmit in (WSJT-X's "Tx even/1st"): a plain button whose
+   * label is the state, so no theme decides what a toggle looks like */
+  p->period = gtk_button_new_with_label("TX odd");
+  gtk_widget_add_css_class(p->period, "flat");
+  gtk_widget_add_css_class(p->period, "mono");
+  gtk_widget_set_valign(p->period, GTK_ALIGN_CENTER);
+  gtk_widget_set_tooltip_text(p->period, "The period we transmit in.  Even starts at 00 and 30 s in FT8 (00, 15, 30, 45 in FT4), odd is the other one.  "
+                                         "Click to switch; answering a station sets the period opposite to theirs.");
+  g_signal_connect(p->period, "clicked", G_CALLBACK(on_period_clicked), p);
   gtk_box_append(GTK_BOX(t1), p->badge);
   gtk_box_append(GTK_BOX(t1), p->card_msg);
+  gtk_box_append(GTK_BOX(t1), p->period);
   gtk_box_append(GTK_BOX(t1), p->card_menu);
   GtkWidget *t2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   p->card_state = gtk_label_new("");
@@ -393,6 +419,8 @@ void ftx_qso_panel_set_tx_eq_rx(FtxQsoPanel *p, gboolean v) { p->updating++; gtk
 gboolean ftx_qso_panel_get_tx_eq_rx(FtxQsoPanel *p) { return gtk_check_button_get_active(GTK_CHECK_BUTTON(p->tx_eq_rx)); }
 void ftx_qso_panel_set_auto_seq(FtxQsoPanel *p, gboolean v) { p->updating++; gtk_switch_set_active(GTK_SWITCH(p->auto_sw), v); p->updating--; }
 gboolean ftx_qso_panel_get_auto_seq(FtxQsoPanel *p) { return gtk_switch_get_active(GTK_SWITCH(p->auto_sw)); }
+void ftx_qso_panel_set_tx_first(FtxQsoPanel *p, gboolean even) { p->tx_first = even != FALSE; period_label(p); }
+gboolean ftx_qso_panel_get_tx_first(FtxQsoPanel *p) { return p->tx_first; }
 void ftx_qso_panel_set_tx_enabled(FtxQsoPanel *p, gboolean v) { p->updating++; gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(p->enable), v); p->updating--; }
 gboolean ftx_qso_panel_get_tx_enabled(FtxQsoPanel *p) { return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(p->enable)); }
 

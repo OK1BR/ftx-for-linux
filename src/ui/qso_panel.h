@@ -2,7 +2,8 @@
  * QSO: the partner (call in large type, grid · distance · bearing), the
  * report to send, the report received, Log QSO.  Transmit: a state badge
  * drawn by the program (RX / ARMED / ON AIR / TUNE — no theme recolours it),
- * the message on the air or next, the "TxN · Hz" button whose popover holds
+ * the message on the air or next, the TX period button (even / odd), the
+ * "TxN · Hz" button whose popover holds
  * what is rarely touched (the six standard messages with the auto-sequencer
  * switch, the Tx frequency with Hold and Tx = Rx, the DX call and grid by
  * hand), the period line and the four buttons Call CQ, Enable TX, Halt TX,
@@ -59,6 +60,9 @@ void        ftx_qso_panel_set_tx_eq_rx(FtxQsoPanel *p, gboolean v);
 gboolean    ftx_qso_panel_get_tx_eq_rx(FtxQsoPanel *p);
 void        ftx_qso_panel_set_auto_seq(FtxQsoPanel *p, gboolean v);
 gboolean    ftx_qso_panel_get_auto_seq(FtxQsoPanel *p);
+/* The period we transmit in: TRUE = even (WSJT-X's "Tx even/1st"). */
+void        ftx_qso_panel_set_tx_first(FtxQsoPanel *p, gboolean even);
+gboolean    ftx_qso_panel_get_tx_first(FtxQsoPanel *p);
 void        ftx_qso_panel_set_tx_enabled(FtxQsoPanel *p, gboolean v);
 gboolean    ftx_qso_panel_get_tx_enabled(FtxQsoPanel *p);
 void        ftx_qso_panel_set_tune(FtxQsoPanel *p, gboolean v);
@@ -68,7 +72,8 @@ void        ftx_qso_panel_set_tx_available(FtxQsoPanel *p, gboolean available, c
 void        ftx_qso_panel_set_log_available(FtxQsoPanel *p, gboolean available, const char *why);
 
 /* Signals: "changed" (any editable field: DX call/grid, next message,
- * Tx frequency, Hold, Tx=Rx, Auto sequence) and "action" (gint FtxQsoAction). */
+ * Tx frequency, Hold, Tx=Rx, Auto sequence, the TX period) and "action" (gint
+ * FtxQsoAction). */
 
 G_END_DECLS
 

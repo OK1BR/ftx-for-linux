@@ -43,6 +43,7 @@ static const struct key {
   K("logging", "psk_tcp", T_BOOL, psk_tcp),
   K("state", "ft4", T_BOOL, ft4), K("state", "rx_hz", T_INT, rx_hz), K("state", "tx_hz", T_INT, tx_hz),
   K("state", "hold_tx", T_BOOL, hold_tx), K("state", "tx_eq_rx", T_BOOL, tx_eq_rx),
+  K("state", "tx_first", T_BOOL, tx_first),
   K("state", "auto_seq", T_BOOL, auto_seq), K("state", "report", T_INT, report),
   K("window", "width", T_INT, win_w), K("window", "height", T_INT, win_h),
   K("window", "maximized", T_BOOL, win_max), K("window", "paned", T_INT, paned_pos),
@@ -63,7 +64,7 @@ void ftx_settings_defaults(FtxSettings *s)
   s->hl_cq = TRUE; s->dim_b4 = TRUE; s->tag_dxcc = TRUE; s->country = 1; s->keep_periods = 20; s->newest_first = FALSE; s->follow_new = TRUE;
   s->all_txt = FALSE; s->udp_enable = TRUE; g_strlcpy(s->udp_host, "127.0.0.1", sizeof s->udp_host); s->udp_port = 2237; s->auto_log = TRUE;
   s->psk_enable = FALSE; s->psk_antenna[0] = '\0'; s->psk_tcp = FALSE;
-  s->rx_hz = 1500; s->tx_hz = 1500; s->hold_tx = TRUE; s->tx_eq_rx = FALSE; s->auto_seq = TRUE; s->report = -10;
+  s->rx_hz = 1500; s->tx_hz = 1500; s->hold_tx = TRUE; s->tx_first = FALSE; s->tx_eq_rx = FALSE; s->auto_seq = TRUE; s->report = -10;
   s->win_w = 1180; s->win_h = 960; s->paned_pos = 320; s->lists_pos = 820;
 }
 

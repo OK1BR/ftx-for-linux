@@ -609,6 +609,17 @@ static void update_card(FtxWindow *win)
   ftx_qso_panel_set_card(win->qso, state, msg[0] ? msg : "(no message)", detail, badge);
 }
 
+/* m_txFirst with its check box: the period we transmit in (TRUE = even) */
+static void set_tx_first(FtxWindow *win, gboolean even)
+{
+  even = even != FALSE;
+  if (win->tx_first == even && ftx_qso_panel_get_tx_first(win->qso) == even) return;
+  win->tx_first = even;
+  win->s->tx_first = even;
+  ftx_qso_panel_set_tx_first(win->qso, even);
+  update_card(win);
+}
+
 /* ---- the period line under the waterfall --------------------------------- */
 
 /* Fills over the period; red while we are on the air or in our slot with TX
@@ -904,7 +915,7 @@ static void process_message(FtxWindow *win, const FtxDecodeRow *d, gboolean doub
 
   /* which period he transmits in → we take the other one */
   int nmod = (int)fmod((double)((d->nutc / 10000) * 3600 + ((d->nutc / 100) % 100) * 60 + d->nutc % 100), 2.0 * period_s(win));
-  win->tx_first = nmod != 0;
+  set_tx_first(win, nmod != 0);
 
   if (!tokens_ok || !w1[0] || !w2[0]) return;
 
@@ -1386,6 +1397,7 @@ static void on_qso_changed(FtxQsoPanel *q, gpointer user)
     set_dx(win, call, grid);
     if (!call[0]) { win->progress = CALLING; set_ntx(win, 6); }
   }
+  set_tx_first(win, ftx_qso_panel_get_tx_first(q));
   win->s->hold_tx = ftx_qso_panel_get_hold(q);
   win->s->tx_eq_rx = ftx_qso_panel_get_tx_eq_rx(q);
   win->s->auto_seq = ftx_qso_panel_get_auto_seq(q);
@@ -1749,6 +1761,8 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   ftx_qso_panel_set_tx_available(win->qso, FALSE, TX_UNAVAILABLE);
   update_log_button(win);
   ftx_qso_panel_set_hold(win->qso, s->hold_tx);
+  win->tx_first = s->tx_first;
+  ftx_qso_panel_set_tx_first(win->qso, s->tx_first);
   ftx_qso_panel_set_tx_eq_rx(win->qso, s->tx_eq_rx);
   ftx_qso_panel_set_auto_seq(win->qso, s->auto_seq);
   ftx_qso_panel_set_report(win->qso, s->report);
