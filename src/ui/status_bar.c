@@ -7,7 +7,7 @@
 
 struct _FtxStatusBar {
   GtkWidget parent_instance;
-  GtkWidget *box, *clock, *health, *audio, *decodes, *tci, *logger;
+  GtkWidget *box, *clock, *health, *audio, *decodes, *tci, *logger, *psk;
 };
 
 G_DEFINE_FINAL_TYPE(FtxStatusBar, ftx_status_bar, GTK_TYPE_WIDGET)
@@ -58,6 +58,15 @@ void ftx_status_bar_set_decodes(FtxStatusBar *sb, const char *text) { gtk_label_
 void ftx_status_bar_set_tci(FtxStatusBar *sb, const char *text, FtxStatusState st) { gtk_label_set_text(GTK_LABEL(sb->tci), text); set_state(sb->tci, st); }
 void ftx_status_bar_set_logger(FtxStatusBar *sb, const char *text, FtxStatusState st) { gtk_label_set_text(GTK_LABEL(sb->logger), text); set_state(sb->logger, st); }
 
+void ftx_status_bar_set_psk(FtxStatusBar *sb, const char *text, FtxStatusState st, const char *tooltip)
+{
+  gtk_widget_set_visible(sb->psk, text != NULL);
+  if (!text) return;
+  gtk_label_set_text(GTK_LABEL(sb->psk), text);
+  gtk_widget_set_tooltip_text(sb->psk, tooltip);
+  set_state(sb->psk, st);
+}
+
 static void ftx_status_bar_dispose(GObject *obj)
 {
   FtxStatusBar *sb = FTX_STATUS_BAR(obj);
@@ -86,6 +95,8 @@ static void ftx_status_bar_init(FtxStatusBar *sb)
   gtk_box_append(GTK_BOX(sb->box), sp);
   sb->tci = item(sb->box, "");
   sb->logger = item(sb->box, "");
+  sb->psk = item(sb->box, "");
+  gtk_widget_set_visible(sb->psk, FALSE);
 }
 
 GtkWidget *ftx_status_bar_new(void) { return g_object_new(FTX_TYPE_STATUS_BAR, NULL); }

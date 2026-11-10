@@ -158,6 +158,7 @@ static void on_decode(void *user, float sync, int snr, float dt, float freq, con
   m->d.sync = sync; m->d.snr = snr; m->d.dt = dt; m->d.freq = freq;
   g_strlcpy(m->d.msg, decoded, sizeof m->d.msg);
   m->d.nap = nap; m->d.qual = qual;
+  m->d.dial_hz = j->dial_hz;
   emit(m);
 }
 

@@ -25,8 +25,9 @@ Comment:
  in WSJT-X v3.0.2 (https://github.com/WSJTX/wsjtx). Every ported file names
  its WSJT-X source file in its header. The standard-message and decoded-text
  helpers in src/app/messages.c, the WSJT-X UDP protocol client in
- src/app/wsjtx_udp.c and the QSO logic in src/ui/window.c follow WSJT-X's
- mainwindow.cpp, decodedtext.cpp and MessageClient the same way.
+ src/app/wsjtx_udp.c, the PSK Reporter client in src/app/pskreporter.c and
+ the QSO logic in src/ui/window.c follow WSJT-X's mainwindow.cpp,
+ decodedtext.cpp, MessageClient and PSKReporter the same way.
 
 Files: data/cty.dat
 Copyright: 1994- Jim Reisert AD1C

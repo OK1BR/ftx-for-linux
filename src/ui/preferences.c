@@ -274,6 +274,11 @@ AdwDialog *ftx_preferences_new(FtxSettings *s, FtxPrefsChanged changed, gpointer
   entry(c, g, "Host", s->udp_host, sizeof s->udp_host);
   spin(c, g, "Port", "WSJT-X default 2237", 1, 65535, 1, 0, &s->udp_port, NULL);
   sw(c, g, "Log the QSO automatically", "when our 73 or RR73 has gone out; Log QSO on the console logs by hand any time", &s->auto_log);
+  g = group(p, "PSK Reporter", "Reports the stations FTX decodes to pskreporter.info, as WSJT-X does: your callsign, grid, the program version, the antenna text and the radio's TCI name, "
+                               "and each station's call, grid, frequency, mode, SNR and time.  Off = nothing leaves this machine.");
+  sw(c, g, "Spot to PSK Reporter", NULL, &s->psk_enable);
+  entry(c, g, "Antenna description", s->psk_antenna, sizeof s->psk_antenna);
+  sw(c, g, "Use TCP", "UDP by default, as WSJT-X", &s->psk_tcp);
 
   p = page(pd, "Display", "display", "preferences-desktop-display-symbolic");
   g = group(p, "Waterfall", NULL);

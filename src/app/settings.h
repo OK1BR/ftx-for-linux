@@ -53,6 +53,9 @@ typedef struct {
   char     udp_host[64];
   int      udp_port;        /* 2237                                          */
   gboolean auto_log;        /* log the QSO when our 73 / RR73 has gone out   */
+  gboolean psk_enable;      /* spot the stations we decode to PSK Reporter (off: nothing leaves the machine) */
+  char     psk_antenna[256]; /* antennaInformation, shown on the PSK Reporter map */
+  gboolean psk_tcp;         /* TCP instead of UDP (WSJT-X "Use TCP/IP connection") */
   /* [state] — operating state remembered across runs */
   gboolean ft4;
   int      rx_hz, tx_hz;

@@ -32,6 +32,7 @@ behaviour and in practice):
 | `ui/window` | `widgets/mainwindow.cpp` `processMessage` (SpecOp::NONE, FT8/FT4), the Rx-frequency pane rule of `readFromStdout`, `auto_sequence` (gated on Enable TX), `cease_auto_Tx_after_QSO` after the first 73, the runaway watchdog, `write_all` (ALL.TXT Rx and Tx lines), `m_dateTimeQSOOn` and the log-on-73 rule (`logQSOTimer` after a 73/RR73 went out) | done (no Fox/Hound, no contest) |
 | `app/bands` | `models/FrequencyList.cpp` `default_frequency_list` (the preferred FT8/FT4 entries, 160–6 m) | done — band edges from sdr-for-linux's table |
 | `app/wsjtx_udp` | `Network/NetworkMessage.hpp` (schema 3 encodings), `Network/MessageClient.cpp` (Heartbeat, Status, Decode, Clear, QSO Logged, Logged ADIF, Close; Highlight Callsign and Halt Tx in), `logbook/logbook.cpp` `QSOToADIF` | done — the log-for-linux link; gate: the datagram log-for-linux parsed on 2026-11-09 |
+| `app/pskreporter` | `Network/PSKReporterIPFIX.cpp` (`buildPackets`: templates 0x50e2/0x50e3, 5-byte frequency, split at the payload limit), `Network/PSKReporter.cpp` (121 s report timer, templates in the first three UDP datagrams and hourly, a call again after 5 minutes, 2048 pending spots, UDP or TCP, eclipse dates), `widgets/mainwindow.cpp` `pskPost`/`pskSetLocal` | done — spotting to PSK Reporter, off by default; gate: 331 scenarios / 668 packets byte for byte against `buildPackets` compiled from the WSJT-X source |
 
 Not ported on purpose: `bpdecode174_91.f90` (no caller outside the ft8var
 decoder in v3.0.2; `decode174_91` carries its own BP) and

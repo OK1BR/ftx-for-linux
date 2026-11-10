@@ -15,6 +15,7 @@
 #include "app/rx_engine.h"
 #include "app/tci_client.h"
 #include "app/tx_engine.h"
+#include "app/pskreporter.h"
 #include "app/wsjtx_udp.h"
 #include "decode_list.h"
 #include "preferences.h"
@@ -47,6 +48,9 @@ struct _FtxWindow {
   char            rpt_sent[8];   /* m_rptSent: the report in the message we transmitted */
   gint64          qso_on_us;     /* m_dateTimeQSOOn                                 */
   gboolean        qso_logged;
+  FtxPskReporter *psk;           /* spotting to PSK Reporter                        */
+  gboolean        psk_on;        /* spotting now: enabled, radio connected, station set */
+  gint64          dial_changed_us;   /* when the dial last moved (real time)        */
 
   GtkWidget *toasts, *dial, *modelab, *title, *band_dd, *mode_dd, *monitor_btn, *paned, *lists, *line;
   FtxWaterfall  *wf;
@@ -300,6 +304,97 @@ static void logger_apply(FtxWindow *win)
   }
   logger_status(win);
   update_log_button(win);
+}
+
+/* ---- PSK Reporter ------------------------------------------------------------- */
+
+static gboolean psk_station_ok(FtxWindow *win) { return win->s->call[0] && ftx_msg_is_grid(win->s->grid); }
+
+static void psk_status(FtxWindow *win)
+{
+  if (!win->psk || !win->s->psk_enable) { ftx_status_bar_set_psk(win->sb, NULL, FTX_STATUS_DIM, NULL); return; }
+  FtxPskState st;
+  ftx_pskreporter_get_state(win->psk, &st);
+  char buf[96], tip[400];
+  if (!psk_station_ok(win)) {
+    ftx_status_bar_set_psk(win->sb, "● PSK Reporter: set callsign and grid", FTX_STATUS_ERROR,
+                           "Spotting needs your callsign and a grid locator — Preferences › Station");
+    return;
+  }
+  char last[48] = "no report sent yet";
+  if (st.last_send_s > 0) {
+    GDateTime *t = g_date_time_new_from_unix_utc(st.last_send_s);
+    char *f = g_date_time_format(t, "last report %H:%M:%S UTC");
+    g_strlcpy(last, f, sizeof last);
+    g_free(f);
+    g_date_time_unref(t);
+  }
+  snprintf(tip, sizeof tip, "%s · %u spot%s in %u report%s · %u queued · %s%s%s%s", win->s->psk_tcp ? "TCP" : "UDP",
+           st.spots_sent, st.spots_sent == 1 ? "" : "s", st.packets_sent, st.packets_sent == 1 ? "" : "s", st.pending, last,
+           win->psk_on ? "" : " · waiting for the radio", st.error ? " · " : "", st.error ? st.error : "");
+  if (st.error) {
+    ftx_status_bar_set_psk(win->sb, "● PSK Reporter: no connection", FTX_STATUS_ERROR, tip);
+  } else {
+    snprintf(buf, sizeof buf, "● PSK Reporter · %u spot%s", st.spots_sent, st.spots_sent == 1 ? "" : "s");
+    ftx_status_bar_set_psk(win->sb, buf, win->psk_on && st.spots_sent > 0 ? FTX_STATUS_OK : FTX_STATUS_DIM, tip);
+  }
+}
+
+static void on_psk_state(gpointer user) { psk_status(user); }
+
+/* Spotting runs while it is switched on, the radio is connected and the
+ * station is set (pskSetLocal); otherwise what is pending goes out and the
+ * connection closes (mainwindow.cpp: sendReport (true) when it is disabled). */
+static void psk_apply(FtxWindow *win)
+{
+  if (!win->psk) return;
+  if (win->s->psk_enable && win->connected && psk_station_ok(win)) {
+    ftx_pskreporter_set_tcp(win->psk, win->s->psk_tcp);
+    ftx_pskreporter_set_local(win->psk, win->s->call, win->s->grid, win->s->psk_antenna, ftx_rx_engine_device(win->eng));
+    win->psk_on = TRUE;
+  } else if (win->psk_on) {
+    win->psk_on = FALSE;
+    ftx_pskreporter_send(win->psk, TRUE);
+  }
+  psk_status(win);
+}
+
+/* The UTC start of a decode's period as unix seconds, from the engine's own
+ * date (WSJT-X's pskPost pairs the HHMMSS with today's date, which is a day
+ * late for the last period before midnight). */
+static gint64 period_start_s(const FtxRxDecode *d)
+{
+  GDateTime *t = g_date_time_new_utc(2000 + d->day / 10000, (d->day / 100) % 100, d->day % 100,
+                                     d->nutc / 10000, (d->nutc / 100) % 100, d->nutc % 100);
+  if (!t) return 0;
+  const gint64 s = g_date_time_to_unix(t);
+  g_date_time_unref(t);
+  return s;
+}
+
+/* MainWindow::pskPost with its callers' conditions: a standard message that
+ * is not a low-confidence ("?") decode and does not carry my own call and
+ * grid (several instances on one station), with a grid or a CQ in it.  The
+ * frequency is the dial of that period plus the audio offset; a period in
+ * which the dial moved is not spotted (WSJT-X: nothing within 0.8 of a period
+ * after a frequency change, and m_freqNominalPeriod). */
+static void psk_post(FtxWindow *win, const FtxRxDecode *d)
+{
+  if (!win->psk_on) return;
+  if (d->nap != 0 && d->qual < 0.17f) return;
+  char mybase[16], grid4[5];
+  ftx_msg_base_call(win->s->call, mybase, sizeof mybase);
+  g_strlcpy(grid4, win->s->grid, sizeof grid4);
+  if (strstr(d->msg, mybase) && strstr(d->msg, grid4)) return;
+  if (!ftx_msg_is_standard(win->pc, d->msg)) return;
+  const gint64 start_s = period_start_s(d);
+  if (start_s <= 0 || d->dial_hz <= 0 || win->dial_changed_us >= start_s * G_USEC_PER_SEC) return;
+  char call[16], grid[8];
+  ftx_msg_de_call_and_grid(d->msg, call, grid);
+  if (!call[0]) return;
+  if (!ftx_msg_is_grid(grid) && strncmp(d->msg, "CQ ", 3) != 0 && !strstr(d->msg, " CQ ")) return;
+  ftx_pskreporter_add(win->psk, call, grid, (guint64)(d->dial_hz + 0.5) + (guint64)(int)(d->freq + 0.5f),
+                      d->ft4 ? "FT4" : "FT8", d->snr, start_s);
 }
 
 /* ---- band switcher: tuning the radio over TCI ------------------------------ */
@@ -1023,6 +1118,7 @@ static void on_decode(const FtxRxDecode *d, gpointer user)
                             for_us ? FTX_WF_LABEL_TO_ME : is_cq ? FTX_WF_LABEL_CQ : FTX_WF_LABEL_PLAIN);
   }
   write_all_txt(win, d);
+  psk_post(win, d);
 
   /* the auto-sequencer reacts when our partner calls us (auto_sequence in
    * mainwindow.cpp: TX enabled and Auto sequence on) */
@@ -1081,9 +1177,13 @@ static void on_row(const float *db, guint nbins, double bin_hz, gint64 t_us, gpo
 static void on_vfo(double hz, gpointer user)
 {
   FtxWindow *win = user;
+  if (hz != win->dial_hz) win->dial_changed_us = g_get_real_time();
   win->dial_hz = hz;
   int nb = ftx_band_for_hz(hz);
-  if (win->cur_band != G_MININT && nb != win->cur_band) clear_decodes(win);
+  if (win->cur_band != G_MININT && nb != win->cur_band) {
+    if (win->psk_on) ftx_pskreporter_send(win->psk, FALSE);   /* mainwindow.cpp: upload any queued spots on a band change */
+    clear_decodes(win);
+  }
   win->cur_band = nb;
   update_dial(win);
   sync_band_dd(win);
@@ -1124,6 +1224,7 @@ static void set_tci_status(FtxWindow *win)
     ftx_status_bar_set_tci(win->sb, "● TCI disconnected", FTX_STATUS_ERROR);
   }
   logger_status(win);
+  psk_apply(win);                  /* spotting follows the radio connection */
 }
 
 static void on_radio_mode(const char *mode, gpointer user)
@@ -1173,6 +1274,7 @@ static void connect_done(GObject *src, GAsyncResult *res, gpointer data)
   if (g_task_propagate_boolean(G_TASK(res), &err)) {
     win->connected = TRUE;
     win->dial_hz = ftx_rx_engine_vfo_hz(win->eng);
+    win->dial_changed_us = g_get_real_time();
     ftx_waterfall_clear(win->wf);
     ftx_qso_panel_set_tx_available(win->qso, TRUE, NULL);
   } else {
@@ -1332,6 +1434,7 @@ static void apply_settings(FtxWindow *win)
   gen_messages(win);
   apply_decoder_params(win);
   logger_apply(win);
+  psk_apply(win);
 }
 
 static void on_prefs_changed(gpointer user)
@@ -1375,7 +1478,7 @@ static void act_about(GSimpleAction *a, GVariant *p, gpointer user)
   adw_about_dialog_set_debug_info(ad, dbg);
   g_free(dbg);
   const char *wsjtx[] = {
-    "WSJT-X v3.0.2 — the FT8/FT4 decoders, encoders, the 77-bit message codec and the QSO logic are ported from it. "
+    "WSJT-X v3.0.2 — the FT8/FT4 decoders, encoders, the 77-bit message codec, the QSO logic and the PSK Reporter client are ported from it. "
     "Copyright (C) 2001-2026 by Joe Taylor K1JT, Bill Somerville G4WJS, Steve Franke K9AN, Nico Palermo IV3NWV, "
     "Uwe Risse DG2YCB, Brian Moran N9ADG, Roger Rehr W3SZ, John Nelson G4KLA, Charlie Suckling DL3WDG and "
     "Terrell Deppe KJ5HST.  https://github.com/WSJTX/wsjtx",
@@ -1388,14 +1491,25 @@ static void act_about(GSimpleAction *a, GVariant *p, gpointer user)
 
 char *ftx_window_debug_info(FtxWindow *win)
 {
-  char fftw[64];
+  char fftw[64], psk[400];
   snprintf(fftw, sizeof fftw, "%s", fftwf_version);
+  if (!win->s->psk_enable) {
+    snprintf(psk, sizeof psk, "off");
+  } else {
+    FtxPskState st;
+    ftx_pskreporter_get_state(win->psk, &st);
+    const char *o = g_getenv("FTX_PSKREPORTER");
+    snprintf(psk, sizeof psk, "on (%s), %s, %s, %u spots in %u reports, %u queued%s%s", win->psk_on ? "spotting" : "waiting for the radio or the station data",
+             o ? o : FTX_PSK_HOST, win->s->psk_tcp ? "TCP" : "UDP", st.spots_sent, st.packets_sent, st.pending,
+             st.error ? ", last error: " : "", st.error ? st.error : "");
+  }
   return g_strdup_printf(
     "FTX for Linux %s\n"
     "GTK %u.%u.%u, libadwaita %u.%u.%u, GSK_RENDERER=%s\n"
     "Decoders: ported from WSJT-X v3.0.2 (git ccdfaf3); %s\n"
     "TCI: %s (configured: %s) — %s%s%s%s\n"
     "Mode %s, Rx %d Hz, Tx %d Hz, depth %d, AP %s, range %d–%d Hz\n"
+    "PSK Reporter: %s\n"
     "Config: %s\n"
     "Data: %s\n"
     "cty.dat: %s%s%s%s",
@@ -1412,6 +1526,7 @@ char *ftx_window_debug_info(FtxWindow *win)
     win->connected ? ftx_rx_engine_protocol(win->eng) : "",
     win->s->ft4 ? "FT4" : "FT8", win->s->rx_hz, win->s->tx_hz, win->s->depth, win->s->ap ? "on" : "off",
     win->s->nfa, win->s->nfb,
+    psk,
     ftx_settings_path(), ftx_settings_data_dir(),
     win->cty ? "VER" : "not found", win->cty && ftx_cty_version(win->cty) ? ftx_cty_version(win->cty) : "",
     win->cty ? " " : "", win->cty ? win->cty_path : "");
@@ -1437,6 +1552,7 @@ static void ftx_window_dispose(GObject *obj)
   if (win->tick_id) { g_source_remove(win->tick_id); win->tick_id = 0; }
   cancel_digu(win);
   g_clear_pointer(&win->udp, ftx_wsjtx_udp_free);     /* sends Close */
+  if (win->psk) { ftx_pskreporter_set_state_cb(win->psk, NULL, NULL); ftx_pskreporter_free(win->psk); win->psk = NULL; }
   g_clear_pointer(&win->b4, g_hash_table_unref);
   g_clear_pointer(&win->newdx, g_hash_table_unref);
   if (win->tx) { ftx_tx_engine_free(win->tx); win->tx = NULL; }
@@ -1483,6 +1599,20 @@ GtkWidget *ftx_window_new(AdwApplication *app, FtxSettings *s)
   win->udp = ftx_wsjtx_udp_new("FTX for Linux", FTX_VERSION, "");
   ftx_wsjtx_udp_set_highlight_cb(win->udp, on_highlight, win);
   ftx_wsjtx_udp_set_halt_cb(win->udp, on_halt_request, win);
+  win->psk = ftx_pskreporter_new("FTX for Linux v" FTX_VERSION);
+  ftx_pskreporter_set_state_cb(win->psk, on_psk_state, win);
+  {
+    /* FTX_PSKREPORTER=host:port sends the reports to a local test collector
+     * instead of report.pskreporter.info:4739 */
+    const char *o = g_getenv("FTX_PSKREPORTER");
+    const char *colon = o ? strrchr(o, ':') : NULL;
+    if (colon && colon > o && atoi(colon + 1) > 0 && atoi(colon + 1) < 65536) {
+      char *host = g_strndup(o, (gsize)(colon - o));
+      ftx_pskreporter_set_server(win->psk, host, (guint16)atoi(colon + 1));
+      g_message("PSK Reporter collector overridden: %s", o);
+      g_free(host);
+    }
+  }
   ftx_tx_engine_set_state_cb(win->tx, on_tx_state, win);
   win->progress = CALLING;
   win->ntx = 6;

@@ -15,10 +15,11 @@ TCI only.
 > and Rx frequency lists, a QSO panel with the WSJT-X auto-sequencer, and
 > transmitting over TCI (the FT8/FT4 waveform exactly as WSJT-X sends it,
 > streamed as TX audio with WSJT-X's timing; Tune tone), a band switcher
-> that tunes the radio to the working frequency in DIGU, and logging to
+> that tunes the radio to the working frequency in DIGU, logging to
 > log-for-linux over the WSJT-X UDP protocol (the QSO goes out as QSO Logged
-> + ADIF when our 73 has been sent). First QSO with it: 2026-11-09, 14.080
-> FT4. CLI tools: `ftx-decode` (WAV files), `ftx-rx` (live, text),
+> + ADIF when our 73 has been sent), and optional spotting to
+> [PSK Reporter](https://pskreporter.info) as WSJT-X does it. First QSO with
+> it: 2026-11-09, 14.080 FT4. CLI tools: `ftx-decode` (WAV files), `ftx-rx` (live, text),
 > `ftx-record`. Follow [docs/PORT-MAP.md](docs/PORT-MAP.md) for the module
 > list.
 
@@ -58,7 +59,9 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   settings (`~/.config/ftx-for-linux/config.ini`), the band table with the
   WSJT-X default working frequencies (`bands.c`), and the WSJT-X UDP client
   (`wsjtx_udp.c`: Heartbeat, Status, Decode, Clear, QSO Logged, Logged ADIF,
-  Close; Highlight Callsign and Halt Tx back) that log-for-linux listens to.
+  Close; Highlight Callsign and Halt Tx back) that log-for-linux listens to,
+  and the PSK Reporter client (`pskreporter.c`: WSJT-X's IPFIX reception
+  reports to report.pskreporter.info, UDP or TCP).
 - `src/ui/` — the GTK4/libadwaita application `ftx-for-linux`: header bar
   with the radio's dial and mode, the band switcher (tunes the radio over
   TCI to the mode's working frequency — WSJT-X's defaults, editable in
@@ -72,6 +75,10 @@ Country Files (`data/cty.dat`, MIT, see `data/cty.dat.LICENSE`).
   Log QSO sends the QSO to log-for-linux (WSJT-X UDP, 127.0.0.1:2237 by
   default), automatically once our 73 or RR73 has gone out; the logger's
   worked-before answers mark B4.
+  Spotting to PSK Reporter is off until you switch it on in Preferences ›
+  Logging; then the stations you decode (those sending a grid or a CQ) are
+  reported with your callsign, grid and antenna description, batched every
+  two minutes, each call at most once in five.
   Optionally writes a WSJT-X compatible `ALL.TXT`
   (`~/.local/share/ftx-for-linux/`). Design notes in
   [docs/mockups/README.md](docs/mockups/README.md).

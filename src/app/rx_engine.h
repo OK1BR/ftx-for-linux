@@ -38,6 +38,7 @@ typedef struct {
   char     msg[38];
   int      nap;
   float    qual;
+  double   dial_hz;        /* the radio's dial when this part of the period was taken */
 } FtxRxDecode;
 
 typedef enum { FTX_RX_PERIOD_DECODED, FTX_RX_PERIOD_GAP, FTX_RX_PERIOD_KEYED } FtxRxPeriodStatus;

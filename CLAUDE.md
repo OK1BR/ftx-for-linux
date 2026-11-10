@@ -659,3 +659,55 @@ Not done: switching the server's TCP listener off (a switch in sdr-for-linux's
 Preferences › TCI — no remote way, and restarting Richard's radio is off
 limits); the evidence instead is that FTX holds no TCP connection.  The
 Preferences row was not looked at headless.
+
+2026-11-10 (day): **#1 PSK Reporter spotting** (Richard: "ano můžeš").
+`src/app/pskreporter.[ch]` ports WSJT-X v3.0.2 `Network/PSKReporterIPFIX.cpp`
+(the packet builder, pure: templates 0x50e2/0x50e3 under PEN 30351, 5-byte
+frequency, 4-byte padding, split at 952 bytes UDP / 65535 TCP) and
+`Network/PSKReporter.cpp` (the client: report.pskreporter.info:4739, UDP or
+TCP, the report timer at 121 s, templates in the first three UDP datagrams
+and hourly / once per TCP connection, a call again only after 300 s — always
+above 49 MHz and ±6 h around an eclipse, the dates of WSJT-X's eclipse.txt
+compiled in — at most 2048 pending spots, a flush every 125 intervals).
+`window.c` ports `pskPost`/`pskSetLocal`: a spot for a standard message that is
+not a "?" decode, does not carry my own call and grid, and has a grid or a CQ
+(so replies with a report are not spotted, as in WSJT-X); frequency = the
+period's dial (`FtxRxDecode.dial_hz`, new) + audio offset; queued spots go out
+on a band change; spotting runs only while switched on, the radio is connected
+and callsign + grid are set, otherwise the pending spots are sent and the
+socket closes.  Settings `[logging] psk_enable` (default **off** — nothing
+leaves the machine), `psk_antenna`, `psk_tcp`; Preferences › Logging › PSK
+Reporter; status bar item "● PSK Reporter · N spots" (hidden when off, red
+"set callsign and grid" / "no connection", tooltip with the counts); About ›
+Debug info line.  rigInformation = the TCI device name ("SDR-for-Linux").
+Deviations from WSJT-X, all in the header: the spot time takes the period's
+own date (WSJT-X pairs HHMMSS with today's date — its midnight guard
+`sTimeString + m_TRperiod < 236000` can never be false); a period in which the
+dial moved is not spotted (WSJT-X: nothing within 0.8 period of a frequency
+change); the call cache is per reporter; a transport change carries pending
+spots to the new socket; a failed connection is retried after 30 s; the TCP
+path ignores the system proxy.  Dev hook: `FTX_PSKREPORTER=host:port` sends to
+a local collector (`dev/tools/pskreporter_collector.py`, a template-driven
+IPFIX decoder on 127.0.0.1 UDP+TCP).  **Never run a test instance with
+psk_enable=true without that override** — the mock's decodes would reach the
+real PSK Reporter as live reception; the headless runs also set
+`udp_enable=false` and a non-existent call (Q1TST).
+Gate `dev/tests/test_pskreporter.c` (84th): 331 scenarios / 668 packets /
+16 390 spots byte for byte against `PSKReporterIPFIX::buildPackets` compiled
+untouched from the clone with Qt5 Core (`dev/tools/vectors/pskreporter_dump.cpp`),
+the cache rule with an injected clock, the client over the loopback UDP and
+TCP read by an independent IPFIX reader, failure paths; clean under ASan/UBSan.
+Verified headless end to end (mock TCI with the FT8 sample, collector on
+127.0.0.1:14739): the app's only PSK socket pointed at the collector; the first
+datagram came 121 s after the connection with both templates, the receiver
+record (call, grid, "FTX for Linux v0.1.0", the antenna text with a "×", the
+TCI device) and five spots — F5RXL IN94, HA0DU KN07, EA2BFM IN83, EA3CJ JN01,
+DL8YHR JO41, exactly the sample's messages with a grid or a CQ, at 14 074 000 +
+ftx-decode's audio frequency, period time as the spot time; status bar
+"● PSK Reporter · 5 spots".  Not verified: the three Preferences rows were
+below the fold of the headless canvas (the group title and text were seen),
+switching on/off from the dialog, and — the real thing — a report accepted by
+pskreporter.info (Richard's call on the air; an outward action, his consent).
+Headless pitfall: a CDP `mouseWheel` event kills gtk4-broadwayd (and the app
+with it) and the CDP call never returns — no wheel under Broadway, and every
+helper call under `timeout`.

@@ -1,6 +1,7 @@
 /* status_bar.h — the bottom line: UTC clock, clock health (mean DT of the
  * last decodes), the audio / TX state, decode count and time of the last
- * period, and the two links this program lives on (TCI, log-for-linux).
+ * period, the two links this program lives on (TCI, log-for-linux) and the
+ * PSK Reporter spotting when it is on.
  * The period progress is not here: it is the period line under the waterfall.
  *
  * Part of FTX for Linux.  Copyright (C) 2026 Richard Fakenberg, OK1BR.
@@ -25,6 +26,8 @@ void ftx_status_bar_set_audio(FtxStatusBar *sb, const char *text, FtxStatusState
 void ftx_status_bar_set_decodes(FtxStatusBar *sb, const char *text);
 void ftx_status_bar_set_tci(FtxStatusBar *sb, const char *text, FtxStatusState st);
 void ftx_status_bar_set_logger(FtxStatusBar *sb, const char *text, FtxStatusState st);
+/* PSK Reporter spotting; text NULL = the item is hidden (spotting is off) */
+void ftx_status_bar_set_psk(FtxStatusBar *sb, const char *text, FtxStatusState st, const char *tooltip);
 
 G_END_DECLS
 
