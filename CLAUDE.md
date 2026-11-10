@@ -790,3 +790,6 @@ sample "CQ K1ABC FN20" went out at 215700 after Call CQ was pressed in the
 odd period; a double-click on a decode of 215730 turned the button to
 "TX odd" and keyed at 215745.  Test pitfall: with K1JT as the own call the
 sample's "K1JT HA0DU KN07" makes the sequencer take over a CQ.
+Live the same night (build eafc5cb installed, instance restarted with Richard's
+"muzes"): two "CQ OK1BR JO70" in odd periods in ALL.TXT, Richard: "vypadá to
+funkční"; issue #4 closed with his "muzes".  Open: #5–#8.
